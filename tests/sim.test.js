@@ -122,3 +122,13 @@ test("deterministic and survives a save round trip", () => {
   assert.strictEqual(c.money, a.money);
   assert.throws(() => CT.State.fromDict({ company: "old save" }), GameError);
 });
+
+test("consoles keep their paint colour; unknown colours fall back to the default", () => {
+  const s = CT.createGame("T", 1);
+  const c = s.designConsole("Red One", parts(0), 170, "#c8372a");
+  assert.strictEqual(c.color, "#c8372a");
+  s.advance(); s.advance(); s.advance();
+  const t = CT.createGame("T", 2);
+  assert.strictEqual(t.designConsole("Odd", parts(0), 170, "#123456").color, D.CONSOLE_COLORS[0][1]);
+  assert.strictEqual(CT.State.fromDict(JSON.parse(JSON.stringify(s))).consoles[0].color, "#c8372a");
+});

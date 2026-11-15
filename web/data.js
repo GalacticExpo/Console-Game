@@ -13,6 +13,10 @@
     STARTING_MONEY: 150000,
     MONTH_NAMES: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
 
+    // Colours you can paint a console: [name, hex]. The first is the default.
+    CONSOLE_COLORS: [["Charcoal", "#2b2d33"], ["Putty", "#d9d3c3"], ["Cobalt", "#2c48c4"], ["Cherry", "#c8372a"],
+      ["Mint", "#7fc8a9"], ["Grape", "#6a4c9c"], ["Sunflower", "#e5b53a"]],
+
     POWER_SLOTS: ["CPU", "GPU", "Memory"],
     APPEAL_SLOTS: ["Storage", "Controller", "Case"],
     COMPONENTS: {

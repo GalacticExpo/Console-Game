@@ -12,22 +12,25 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap">
 <style>
-/* Layout: one handheld-width column. A dark "LCD" status strip on top, console-plastic
-   panels below, and a thumb-reach dock at the bottom with the Next month button. */
+/* Layout: landscape split. Left: a dark showroom with a spotlight, the status readout on
+   top, the model in the middle and time controls at the bottom. Right: the workbench,
+   a scrolling panel of console-plastic controls. Upright phones get a rotate prompt. */
 :root {
-  --plastic: #e4e1da;      /* page: light console plastic */
+  --plastic: #e4e1da;      /* workbench: light console plastic */
   --panel: #f4f2ed;
   --ink: #1e2025;
   --muted: #66645e;
   --line: #cbc6bb;
   --accent: #2c48c4;       /* cobalt "A button" */
   --accent-ink: #ffffff;
-  --led: #c8372a;          /* power-LED red for debt and danger */
+  --led: #c8372a;          /* power-LED red for danger */
   --good: #287048;
   --mid: #9a6a0a;
-  --lcd-bg: #24262c;
-  --lcd-fg: #ece9e1;
-  --lcd-dim: #9d9a92;
+  /* The showroom stays dark in both themes, like a lit display case. */
+  --room: #1a1b20;
+  --room-light: #3a3d48;
+  --room-fg: #ece9e1;
+  --room-dim: #9d9a92;
   --font-display: "Silkscreen", "Courier New", monospace;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -37,145 +40,152 @@
   :root:not([data-theme="light"]) {
     --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
     --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
-    --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+    --room: #0c0d10; --room-light: #2a2d36; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
   --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
-  --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+  --room: #0c0d10; --room-light: #2a2d36; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-html, body { background: var(--plastic); }
+html, body { height: 100%; background: var(--plastic); }
 body {
   color: var(--ink);
-  font: 15px/1.5 var(--font-body);
+  font: 14px/1.45 var(--font-body);
   margin: 0;
+  overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
-body::before {
-  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
-  z-index: 10; background: var(--lcd-bg);
-}
-#app { max-width: 600px; margin: 0 auto; }
+#app { height: 100%; }
 button, input, textarea { font: inherit; color: inherit; }
 h1, h2, h3 { text-wrap: balance; margin: 0; }
 h2 {
-  font: 600 12px/1.2 var(--font-data); text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--muted); margin-bottom: 8px;
+  font: 600 11px/1.2 var(--font-data); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin-bottom: 6px;
 }
 code { font-family: var(--font-data); font-size: 0.9em; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* ---------- LCD status strip */
-.lcd {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--lcd-bg); color: var(--lcd-fg);
-  padding-block: 10px 12px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  border-radius: 0 0 var(--radius) var(--radius);
+/* ---------- split layout */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
+.stage {
+  display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden;
+  color: var(--room-fg);
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--room-light), var(--room) 75%);
+  padding-block: 8px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: 12px;
 }
+.panel {
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 14px;
+  padding-block: 12px 24px;
+  padding-left: 14px;
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- status readout */
+.lcd { display: flex; flex-direction: column; gap: 4px; }
 .lcd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .logo {
-  font: 15px/1.2 var(--font-display); background: none; border: 0; padding: 0; color: var(--lcd-fg);
+  font: 14px/1.2 var(--font-display); background: none; border: 0; padding: 0; color: var(--room-fg);
   text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
 }
-.date { font: 600 14px var(--font-data); color: var(--lcd-fg); white-space: nowrap; }
-.lcd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.date { font: 600 13px var(--font-data); white-space: nowrap; }
+.lcd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .stat { display: flex; flex-direction: column; min-width: 0; }
 .stat b { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat small { font-size: 10px; color: var(--lcd-dim); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.btn.quiet { background: none; border: 0; color: var(--muted); font-weight: 500; text-decoration: underline; }
+.stat small { font-size: 9px; color: var(--room-dim); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ---------- screens */
-.screen {
-  display: flex; flex-direction: column; gap: 18px;
-  padding-block: 16px 24px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
-.home { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-.screen-head { display: flex; align-items: center; gap: 12px; }
-.screen-head h1 { font: 20px/1.2 var(--font-display); }
+/* ---------- showroom */
+.showroom { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.model { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.model svg { width: 100%; height: 100%; max-height: 100%; }
+.empty-model p { color: var(--room-dim); text-align: center; margin: 0; }
+.caption { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
+.caption b { font: 15px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.caption small { color: var(--room-dim); font-size: 12px; }
+.focus-bars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 360px; margin-top: 4px; }
+.focus-bars span { display: flex; flex-direction: column; gap: 2px; }
+.focus-bars i { display: block; height: 5px; border-radius: 3px; background: #7f95ff; min-width: 2px; }
+.focus-bars small { font: 10px var(--font-data); color: var(--room-dim); text-transform: uppercase; }
+.stage-title { text-align: center; }
+.eyebrow { font: 600 11px var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: #7f95ff; margin: 0; }
+.big-title { font: clamp(22px, 4.2vw, 40px)/1 var(--font-display); }
+.time { display: flex; flex-direction: column; gap: 6px; }
+.skip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.skip .btn { min-height: 34px; padding-block: 4px; font: 600 12px var(--font-data); }
+.next { width: 100%; min-height: 44px; font: 16px var(--font-display); }
+
+/* ---------- workbench */
+.lede { margin: 0; font-size: 15px; max-width: 34em; }
+.screen-head { display: flex; align-items: center; gap: 10px; }
+.screen-head h1 { font: 17px/1.2 var(--font-display); }
 .back {
   background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
-  padding: 6px 12px; font: 600 13px var(--font-data); cursor: pointer; white-space: nowrap;
+  padding: 5px 11px; font: 600 12px var(--font-data); cursor: pointer; white-space: nowrap;
 }
-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; gap: 10px; }
-.hint { color: var(--muted); font-size: 13px; margin: 0; }
-.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; gap: 8px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .empty p { margin: 0; }
-
-/* ---------- start screen */
-.start { padding-top: max(32px, env(safe-area-inset-top, 0px)); }
-.title-card { display: flex; flex-direction: column; gap: 10px; padding-block: 12px; }
-.eyebrow { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0; }
-.big-title { font: clamp(40px, 13vw, 64px)/0.95 var(--font-display); letter-spacing: -0.01em; }
-.lede { margin: 0; max-width: 34em; font-size: 16px; }
-.final { font: 600 16px var(--font-data); margin: 0; }
-.final b { font-size: 28px; color: var(--accent); }
 
 /* ---------- rows */
 .row {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 11px;
 }
 .card .row { background: none; border: 0; padding: 0; }
-.row-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.row.tap { cursor: pointer; }
+.card .row.on b { color: var(--accent); }
+.row-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .row-main b { overflow-wrap: anywhere; }
-.sub { color: var(--muted); font-size: 13px; }
-.num { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pill {
-  font: 600 11px var(--font-data); padding: 3px 8px; border-radius: 999px; white-space: nowrap;
-  border: 1px solid var(--line); color: var(--muted);
-}
-.pill.good, .score.good { color: var(--good); border-color: var(--good); }
-.pill.mid, .score.mid { color: var(--mid); border-color: var(--mid); }
-.pill.bad, .score.bad { color: var(--led); border-color: var(--led); }
-.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.num { font: 600 12.5px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.swatch-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid var(--line); }
+.score { font: 600 14px var(--font-data); border: 1px solid; border-radius: 8px; padding: 2px 8px; }
+.score.good { color: var(--good); }
+.score.mid { color: var(--mid); }
+.score.bad { color: var(--led); }
+.bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 5px; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 
 /* ---------- news */
-.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.news li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
-.news time { font: 12px/1.7 var(--font-data); color: var(--muted); white-space: nowrap; }
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.news li { display: grid; grid-template-columns: 60px 1fr; gap: 8px; font-size: 13px; }
+.news time { font: 11px/1.8 var(--font-data); color: var(--muted); white-space: nowrap; }
 .news span { min-width: 0; overflow-wrap: anywhere; }
 .news li.note span { color: var(--muted); font-style: italic; }
 .news li.note time { visibility: hidden; }
 .news li.big span { font-weight: 600; }
-.news li.event span { color: var(--accent); }
-.news li.warn span { color: var(--led); font-weight: 600; }
 .report { border-color: var(--accent); }
 .report-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .report-head h2 { margin: 0; }
-.delta { font: 600 18px var(--font-data); font-variant-numeric: tabular-nums; }
+.delta { font: 600 16px var(--font-data); font-variant-numeric: tabular-nums; }
 .delta.pos { color: var(--good); }
 .delta.neg { color: var(--led); }
 
-/* ---------- action grid */
-.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+/* ---------- tiles & buttons */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .tile {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
   background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px;
-  border-radius: var(--radius); padding: 12px; min-height: 64px; cursor: pointer;
+  border-radius: var(--radius); padding: 10px 12px; cursor: pointer;
 }
 .tile small { color: var(--muted); font-size: 12px; }
-.tile.ready { border-color: var(--accent); }
-.tile.ready small { color: var(--accent); font-weight: 600; }
-.tile:active, .btn:active, .opt:active, .chip:active { transform: translateY(1px); }
-
-/* ---------- buttons */
 .btn {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 44px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+  min-height: 42px; padding: 7px 14px; border-radius: var(--radius); cursor: pointer;
   background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px; font-weight: 600;
 }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.dark { background: rgba(255, 255, 255, 0.06); color: var(--room-fg); border-color: rgba(255, 255, 255, 0.18); }
 .btn.danger { color: var(--led); border-color: var(--led); }
+.btn.quiet { background: none; border: 0; color: var(--muted); font-weight: 500; text-decoration: underline; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.wide { width: 100%; }
 .btn-sub { font-weight: 400; font-size: 12px; opacity: 0.85; }
@@ -183,39 +193,25 @@ section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .split .btn { flex: 1 1 120px; }
 .inline { display: flex; gap: 8px; }
 .inline input { flex: 1; min-width: 0; }
-
-/* ---------- dock */
-.dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-  max-width: 600px; margin: 0 auto;
-  display: flex; flex-direction: column; gap: 8px;
-  background: var(--plastic); border-top: 1px solid var(--line);
-  padding-top: 10px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
-.skip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.skip .btn { min-height: 40px; font: 600 13px var(--font-data); }
-.next { width: 100%; min-height: 54px; font: 18px var(--font-display); }
+.tile:active, .btn:active, .opt:active, .chip:active, .swatch:active { transform: translateY(1px); }
 
 /* ---------- forms */
-fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 legend {
-  font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
-  padding: 0; margin-bottom: 6px; width: 100%;
+  font: 600 11px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  padding: 0; margin-bottom: 5px; width: 100%;
 }
-.legend-note { float: right; text-transform: none; letter-spacing: 0; color: var(--accent); }
-label { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.legend-note, .label-note { float: right; text-transform: none; letter-spacing: 0; color: var(--accent); }
+label { font: 600 11px var(--font-data); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 input, textarea {
   width: 100%; background: var(--plastic); border: 1px solid var(--line); border-radius: 8px;
-  padding: 10px 12px; font-size: 16px; min-width: 0;
+  padding: 8px 11px; font-size: 16px; min-width: 0;
 }
 textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
 .opt {
   display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 10px;
   text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 10px 12px; cursor: pointer; width: 100%;
+  padding: 8px 11px; cursor: pointer; width: 100%;
 }
 .opt b { grid-column: 1; }
 .opt small { grid-column: 1; color: var(--muted); font-size: 12px; }
@@ -226,55 +222,71 @@ textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
 .opt.locked .num { color: var(--muted); font-weight: 400; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px;
-  font-size: 14px; cursor: pointer; min-height: 38px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
+  font-size: 13.5px; cursor: pointer; min-height: 36px;
 }
 .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.stepper {
-  display: grid; grid-template-columns: 82px 40px 30px 40px 1fr; align-items: center; gap: 6px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px;
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch {
+  width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: var(--sw);
+  border: 2px solid var(--line); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.2);
 }
-.stepper span:first-child { font-weight: 600; font-size: 14px; }
+.swatch.on { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
+.stepper {
+  display: grid; grid-template-columns: 80px 38px 28px 38px 1fr; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 10px;
+}
+.stepper span:first-child { font-weight: 600; font-size: 13.5px; }
 .step {
-  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); border-bottom-width: 3px;
-  background: var(--plastic); font: 600 20px/1 var(--font-data); cursor: pointer;
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); border-bottom-width: 3px;
+  background: var(--plastic); font: 600 19px/1 var(--font-data); cursor: pointer;
 }
 .step:disabled { opacity: 0.35; }
-.stepper output { text-align: center; font: 600 18px var(--font-data); }
-.pips { color: var(--accent); letter-spacing: 1px; font-size: 12px; overflow: hidden; white-space: nowrap; }
+.stepper output { text-align: center; font: 600 17px var(--font-data); }
+.pips { color: var(--accent); letter-spacing: 1px; font-size: 11px; overflow: hidden; white-space: nowrap; }
 .lessons { border-left: 3px solid var(--accent); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
-.lessons h3 { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
-.lessons p { margin: 0; font-size: 13px; }
+.lessons h3 { font: 600 11px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.lessons p { margin: 0; font-size: 12.5px; }
 
-/* ---------- data lists & tables */
-dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
-dt { color: var(--muted); font-size: 13px; }
+/* ---------- data lists */
+dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 0; }
+dt { color: var(--muted); font-size: 12.5px; }
 dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
 dd small { color: var(--muted); }
 dd.neg { color: var(--led); }
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { padding: 8px 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-th { font: 600 11px var(--font-data); text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
-th:first-child, td:first-child { text-align: left; }
-td small { display: block; color: var(--muted); font-size: 11px; }
-tr.you td { color: var(--accent); font-weight: 600; }
-tbody tr + tr td { border-top: 1px solid var(--line); }
 
 /* ---------- games list */
-details.game { display: block; padding: 0; }
-details.game summary { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; list-style: none; }
-details.game summary::-webkit-details-marker { display: none; }
-.score { font: 600 15px var(--font-data); border: 1px solid; border-radius: 8px; padding: 2px 8px; }
-.detail { padding: 0 12px 12px; font-size: 13px; color: var(--muted); }
+.row.game { display: block; padding: 0; }
+.row.game.on { border-color: var(--accent); }
+.game-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; background: none; border: 0; text-align: left; cursor: pointer; }
+.detail { padding: 0 11px 11px; font-size: 12.5px; color: var(--muted); }
 .detail p { margin: 0 0 4px; }
 .detail ul { margin: 4px 0 0; padding-left: 18px; }
-.rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; max-width: 65ch; }
+.rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 65ch; }
 
 /* ---------- flash */
-.flash { padding: 10px 12px; border-radius: var(--radius); font-weight: 500; border: 1px solid; }
-.flash.ok { color: var(--good); border-color: var(--good); background: var(--panel); }
-.flash.err { color: var(--led); border-color: var(--led); background: var(--panel); }
+.flash { padding: 9px 11px; border-radius: var(--radius); font-weight: 500; border: 1px solid; background: var(--panel); }
+.flash.ok { color: var(--good); border-color: var(--good); }
+.flash.err { color: var(--led); border-color: var(--led); }
+
+/* ---------- rotate prompt (upright phones) */
+.rotate { display: none; }
+@media (orientation: portrait) and (max-width: 700px) {
+  :root:not(.upright) .rotate {
+    display: flex; position: fixed; inset: 0; z-index: 20; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; text-align: center; background: var(--room); color: var(--room-fg);
+    padding-block: 24px;
+    padding-left: max(24px, env(safe-area-inset-left, 0px));
+    padding-right: max(24px, env(safe-area-inset-right, 0px));
+  }
+  .rotate svg { width: 96px; height: 96px; color: #7f95ff; animation: tilt 2.4s ease-in-out infinite; }
+  .rotate h1 { font: 20px/1.2 var(--font-display); }
+  .rotate p { margin: 0; max-width: 26em; color: var(--room-dim); }
+  .rotate .btn { background: none; color: var(--room-fg); border-color: rgba(255, 255, 255, 0.25); }
+  /* Played upright: showroom on top, workbench below. */
+  :root.upright .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 46%) minmax(0, 1fr); }
+}
+@keyframes tilt { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -297,6 +309,10 @@ details.game summary::-webkit-details-marker { display: none; }
     START_YEAR: 1985,
     STARTING_MONEY: 150000,
     MONTH_NAMES: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+
+    // Colours you can paint a console: [name, hex]. The first is the default.
+    CONSOLE_COLORS: [["Charcoal", "#2b2d33"], ["Putty", "#d9d3c3"], ["Cobalt", "#2c48c4"], ["Cherry", "#c8372a"],
+      ["Mint", "#7fc8a9"], ["Grape", "#6a4c9c"], ["Sunflower", "#e5b53a"]],
 
     POWER_SLOTS: ["CPU", "GPU", "Memory"],
     APPEAL_SLOTS: ["Storage", "Controller", "Case"],
@@ -415,7 +431,7 @@ details.game summary::-webkit-details-marker { display: none; }
   const withArticle = (w) => (/^[AEIOU]/.test(w) ? `an ${w}` : `a ${w}`);
 
   function newConsole(f) {
-    return Object.assign({ name: "", parts: {}, price: 0, status: "dev", dev_months_left: 0,
+    return Object.assign({ name: "", parts: {}, price: 0, color: D.CONSOLE_COLORS[0][1], status: "dev", dev_months_left: 0,
       launch_month: -1, installed_base: 0, revenue: 0, profit: 0, last_sales: 0 }, f);
   }
   function newGame(f) {
@@ -458,7 +474,7 @@ details.game summary::-webkit-details-marker { display: none; }
     }
 
     // ---------------------------------------------------------- consoles
-    designConsole(name, parts, price) {
+    designConsole(name, parts, price, color) {
       name = (name || "").trim();
       if (!name) throw new GameError("Your console needs a name.");
       if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
@@ -470,7 +486,8 @@ details.game summary::-webkit-details-marker { display: none; }
       if (this.consoleInDev()) throw new GameError("Your hardware team is already building a console.");
       const cost = devCost(parts);
       this.spend(cost);
-      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price), dev_months_left: devMonths(parts) });
+      if (!D.CONSOLE_COLORS.some(([, hex]) => hex === color)) color = D.CONSOLE_COLORS[0][1];
+      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price), color, dev_months_left: devMonths(parts) });
       this.consoles.push(c);
       this.say(`Hardware team began building the ${name} (${fmtMoney(cost)}).`);
       return c;
@@ -658,14 +675,244 @@ details.game summary::-webkit-details-marker { display: none; }
 
 </script>
 <script>
-// Console Tycoon touch UI. Renders screens into #app and handles taps.
+// Draws the showroom models: consoles built from their parts, and game cartridges / boxes.
+// Every function returns an SVG string.
+"use strict";
+
+(function (root) {
+  const D = root.CT_DATA;
+  let uid = 0;
+
+  // ------------------------------------------------------------ colour helpers
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function shade(hex, amt) { // amt -1..1: darker..lighter
+    const [r, g, b] = hexToRgb(hex);
+    const f = (c) => Math.round(amt < 0 ? c * (1 + amt) : c + (255 - c) * amt);
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  }
+  const isLight = (hex) => { const [r, g, b] = hexToRgb(hex); return r * 0.299 + g * 0.587 + b * 0.114 > 150; };
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function hash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function seeded(seed) {
+    let a = seed || 1;
+    return () => { a = (a + 0x6d2b79f5) >>> 0; let t = Math.imul(a ^ (a >>> 15), a | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  // ------------------------------------------------------------ console
+  // Case tiers: front-face height, corner radius and finish.
+  const CASES = [
+    { h: 92, rx: 5, ridges: true },                // Plastic Box
+    { h: 84, rx: 26 },                             // Sleek Shell
+    { h: 90, rx: 12, clear: true },                // Translucent Shell
+    { h: 58, rx: 10 },                             // Compact Slim
+    { h: 78, rx: 14, metal: true },                // Premium Alloy
+    { h: 92, rx: 3, slant: true },                 // Designer Edition
+    { h: 86, rx: 43, glow: true },                 // Morphing Shell
+  ];
+
+  function consoleSVG({ parts, color, name }) {
+    const id = `m${++uid}`;
+    const cs = CASES[parts.Case] || CASES[0];
+    const W = 250, x0 = 70, base = 206, top = base - cs.h, dx = 26, dy = -18;
+    const body = color || "#2b2d33";
+    const ink = isLight(body) ? "#24262c" : "#f1eee6";
+    const power = ["CPU", "GPU", "Memory"].reduce((t, s) => t + parts[s] + 1, 0);
+    const flat = cs.rx > 16;
+    const out = [];
+
+    out.push(`<defs>
+      <linearGradient id="${id}f" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${shade(body, cs.metal ? 0.35 : 0.08)}"/>
+        <stop offset="1" stop-color="${shade(body, cs.metal ? -0.35 : -0.12)}"/>
+      </linearGradient>
+      <radialGradient id="${id}g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#7fd7ff" stop-opacity="0.8"/><stop offset="1" stop-color="#7fd7ff" stop-opacity="0"/></radialGradient>
+    </defs>`);
+    out.push(`<ellipse cx="${x0 + W / 2 + 12}" cy="${base + 10}" rx="${W / 2 + 40}" ry="14" fill="#000" opacity="0.35"/>`);
+    if (cs.glow) out.push(`<ellipse cx="${x0 + W / 2}" cy="${top + cs.h / 2}" rx="${W / 2 + 30}" ry="${cs.h}" fill="url(#${id}g)" opacity="0.5"/>`);
+
+    // Side and top faces give a little depth to boxy cases.
+    if (!flat) {
+      out.push(`<polygon points="${x0 + W},${top} ${x0 + W + dx},${top + dy} ${x0 + W + dx},${base + dy} ${x0 + W},${base}" fill="${shade(body, -0.35)}"/>`);
+      out.push(`<polygon points="${x0},${top} ${x0 + W},${top} ${x0 + W + dx},${top + dy} ${x0 + dx},${top + dy}" fill="${shade(body, 0.22)}"/>`);
+      if (cs.ridges) {
+        for (let i = 1; i <= 5; i++) {
+          const x = x0 + W * 0.62 + i * 14;
+          out.push(`<line x1="${x}" y1="${top - 1}" x2="${x + dx}" y2="${top + dy - 1}" stroke="${shade(body, -0.2)}" stroke-width="3"/>`);
+        }
+      }
+    }
+
+    // Storage on top (cartridge slots, CD lid) is drawn before the front face.
+    const st = parts.Storage;
+    const sx = x0 + W * 0.36, sy = top + (flat ? 6 : dy / 2);
+    if (st <= 1) {
+      const cw = st === 0 ? 74 : 92, ch = st === 0 ? 58 : 64;
+      out.push(`<rect x="${sx - 6}" y="${sy - 4}" width="${cw + 12}" height="9" rx="3" fill="#111"/>`);
+      out.push(`<rect x="${sx}" y="${sy - ch}" width="${cw}" height="${ch + 2}" rx="5" fill="#8d8f96"/>`);
+      for (let i = 0; i < 4; i++) out.push(`<rect x="${sx + 8}" y="${sy - ch + 6 + i * 5}" width="${cw - 16}" height="2" fill="#6f7178"/>`);
+      out.push(`<rect x="${sx + 8}" y="${sy - ch + 28}" width="${cw - 16}" height="${ch - 34}" rx="2" fill="${st === 0 ? "#e9e4d4" : "#f2c14e"}"/>`);
+      out.push(`<rect x="${sx + 14}" y="${sy - ch + 34}" width="${cw - 28}" height="5" fill="${st === 0 ? "#c8372a" : "#2c48c4"}"/>`);
+    } else if (st === 2) {
+      out.push(`<ellipse cx="${sx + 40}" cy="${sy}" rx="${flat ? 48 : 52}" ry="${flat ? 7 : 11}" fill="${shade(body, -0.25)}" stroke="${shade(body, 0.3)}" stroke-width="2"/>`);
+      out.push(`<ellipse cx="${sx + 40}" cy="${sy}" rx="10" ry="2.5" fill="${shade(body, 0.4)}"/>`);
+    } else if (st === 6) {
+      for (let i = 1; i <= 3; i++) out.push(`<path d="M ${sx + 40 - i * 14} ${sy - 10 - i * 4} q ${i * 14} ${-i * 12} ${i * 28} 0" fill="none" stroke="#7fd7ff" stroke-width="3" stroke-linecap="round" opacity="${1 - i * 0.2}"/>`);
+    }
+
+    // Front face.
+    if (cs.slant) {
+      out.push(`<polygon points="${x0 + 18},${top} ${x0 + W},${top} ${x0 + W - 10},${base} ${x0},${base}" fill="url(#${id}f)"/>`);
+      out.push(`<polygon points="${x0 + 18},${top} ${x0 + W},${top} ${x0 + W + dx},${top + dy} ${x0 + 18 + dx},${top + dy}" fill="${shade(body, 0.22)}"/>`);
+    } else {
+      out.push(`<rect x="${x0}" y="${top}" width="${W}" height="${cs.h}" rx="${cs.rx}" fill="url(#${id}f)" ${cs.clear ? 'fill-opacity="0.72"' : ""}/>`);
+    }
+    if (cs.clear) {
+      out.push(`<rect x="${x0 + 100}" y="${top + 22}" width="64" height="38" rx="3" fill="#2f7a4a" opacity="0.45"/>`);
+      for (let i = 0; i < 6; i++) out.push(`<rect x="${x0 + 106 + i * 10}" y="${top + 30}" width="6" height="22" fill="#1e2025" opacity="0.4"/>`);
+    }
+    if (cs.metal) out.push(`<rect x="${x0 + 10}" y="${top + 6}" width="${W - 20}" height="3" rx="1.5" fill="#fff" opacity="0.35"/>`);
+
+    // Front details: drive slots, vents (one per point of power), LED, name badge.
+    if (st === 3 || st === 4) {
+      out.push(`<rect x="${x0 + 22}" y="${top + 12}" width="96" height="7" rx="3.5" fill="#111"/>`);
+      if (st === 4) out.push(`<rect x="${x0 + 26}" y="${top + 21}" width="88" height="2" fill="#4f7cff"/>`);
+    } else if (st === 5) {
+      out.push(`<rect x="${x0 + 22}" y="${top + 13}" width="96" height="3" rx="1.5" fill="#7fd7ff" opacity="0.9"/>`);
+    }
+    const vents = Math.min(power, 8);
+    for (let i = 0; i < vents; i++) {
+      const vx = x0 + W - 24 - i * 7;
+      out.push(`<rect x="${vx}" y="${top + cs.h * 0.3}" width="3" height="${cs.h * 0.45}" rx="1.5" fill="${shade(body, -0.45)}"/>`);
+    }
+    out.push(`<circle cx="${x0 + 22}" cy="${base - 18}" r="4.5" fill="#ff5a4a"/><circle cx="${x0 + 22}" cy="${base - 18}" r="9" fill="#ff5a4a" opacity="0.25"/>`);
+    out.push(`<rect x="${x0 + 36}" y="${base - 24}" width="26" height="12" rx="3" fill="${shade(body, -0.3)}"/>`);
+    const label = esc((name || "").slice(0, 16).toUpperCase());
+    if (label) out.push(`<text x="${x0 + 22}" y="${top + (cs.h < 70 ? 31 : cs.h * 0.5)}" font-family="Silkscreen, 'Courier New', monospace" font-size="${cs.h < 70 ? 12 : 15}" fill="${ink}" opacity="0.9">${label}</text>`);
+
+    out.push(controllerSVG(parts.Controller, body, x0, base));
+    return `<svg viewBox="0 0 420 290" role="img" aria-label="Model of ${esc(name || "your console")}" xmlns="http://www.w3.org/2000/svg">${out.join("")}</svg>`;
+  }
+
+  function controllerSVG(tier, body, x0, base) {
+    const cx = 150, cy = 252;
+    const pad = shade(body, -0.15), edge = shade(body, 0.25);
+    const out = [];
+    if (tier <= 3) out.push(`<path d="M ${cx + 40} ${cy - 14} C ${cx + 70} ${cy - 40}, ${x0 + 130} ${base + 20}, ${x0 + 120} ${base - 4}" fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"/>`);
+    if (tier === 4) { // motion wand
+      out.push(`<rect x="${cx - 70}" y="${cy - 9}" width="150" height="20" rx="10" fill="${pad}" stroke="${edge}" stroke-width="2" transform="rotate(-12 ${cx} ${cy})"/>`);
+      out.push(`<circle cx="${cx - 52}" cy="${cy + 13}" r="6" fill="#7fd7ff" opacity="0.9"/><circle cx="${cx + 30}" cy="${cy - 6}" r="5" fill="#c8372a"/>`);
+      return out.join("");
+    }
+    if (tier === 6) { // neural band
+      out.push(`<ellipse cx="${cx}" cy="${cy}" rx="62" ry="18" fill="none" stroke="${pad}" stroke-width="10"/>`);
+      out.push(`<ellipse cx="${cx}" cy="${cy}" rx="62" ry="18" fill="none" stroke="#7fd7ff" stroke-width="2" opacity="0.8"/>`);
+      return out.join("");
+    }
+    const w = tier >= 2 ? 140 : 118, h = tier >= 2 ? 52 : 40;
+    out.push(`<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="${pad}" stroke="${edge}" stroke-width="2"/>`);
+    // d-pad
+    const dx = cx - w / 2 + 26, dy = cy - (tier >= 2 ? 6 : 0);
+    out.push(`<rect x="${dx - 10}" y="${dy - 3.5}" width="20" height="7" rx="1.5" fill="#1b1c20"/><rect x="${dx - 3.5}" y="${dy - 10}" width="7" height="20" rx="1.5" fill="#1b1c20"/>`);
+    // face buttons
+    const bx = cx + w / 2 - 28, by = dy;
+    const buttons = tier === 0 ? [[-8, 4], [8, -4]]
+      : tier === 1 ? [[-12, 5], [0, 5], [12, 5], [-12, -7], [0, -7], [12, -7]]
+        : [[0, -10], [-10, 0], [10, 0], [0, 10]];
+    const colors = ["#c8372a", "#2c48c4", "#e0b04a", "#287048", "#c8372a", "#2c48c4"];
+    buttons.forEach(([ox, oy], i) => out.push(`<circle cx="${bx + ox}" cy="${by + oy}" r="${tier === 1 ? 4.5 : 5.5}" fill="${tier === 0 ? "#c8372a" : colors[i]}"/>`));
+    if (tier >= 2) { // analog sticks
+      out.push(`<circle cx="${cx - 18}" cy="${cy + 12}" r="8" fill="#1b1c20"/><circle cx="${cx + 18}" cy="${cy + 12}" r="8" fill="#1b1c20"/>`);
+    }
+    if (tier === 3) { // rumble
+      out.push(`<path d="M ${cx - w / 2 - 12} ${cy - 10} l -6 5 l 6 5 l -6 5" fill="none" stroke="${edge}" stroke-width="2"/><path d="M ${cx + w / 2 + 12} ${cy - 10} l 6 5 l -6 5 l 6 5" fill="none" stroke="${edge}" stroke-width="2"/>`);
+    }
+    if (tier === 5) out.push(`<rect x="${cx - 16}" y="${cy - 20}" width="32" height="16" rx="4" fill="#7fd7ff" opacity="0.55"/>`);
+    else if (tier < 2) out.push(`<rect x="${cx - 12}" y="${cy - 2}" width="10" height="4" rx="2" fill="#1b1c20"/><rect x="${cx + 4}" y="${cy - 2}" width="10" height="4" rx="2" fill="#1b1c20"/>`);
+    return out.join("");
+  }
+
+  // ------------------------------------------------------------ game
+  const GENRE_HUES = { Action: 8, Adventure: 140, Platformer: 48, Puzzle: 280, Racing: 200, Rhythm: 320, RPG: 260, Shooter: 0, Simulation: 170, Sports: 110, Strategy: 30 };
+
+  function wrap(text, max) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      if ((line + " " + w).trim().length > max && line) { lines.push(line); line = w; } else line = (line + " " + w).trim();
+    }
+    if (line) lines.push(line);
+    return lines.slice(0, 3).map((l) => (l.length > max ? l.slice(0, max - 1) + "…" : l));
+  }
+
+  // Cover art: shapes seeded by the title, coloured by the genre.
+  function coverArt(id, x, y, w, h, g) {
+    const hue = g.genre ? GENRE_HUES[g.genre] : 220;
+    const sat = g.genre ? 62 : 8;
+    const rnd = seeded(hash(`${g.title}|${g.topic}|${g.genre}`));
+    const out = [`<defs><linearGradient id="${id}a" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="hsl(${hue},${sat}%,52%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},${sat + 8}%,22%)"/></linearGradient>
+        <clipPath id="${id}c"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"/></clipPath></defs>`,
+    `<g clip-path="url(#${id}c)"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${id}a)"/>`];
+    if (g.genre) {
+      for (let i = 0; i < 7; i++) {
+        const px = x + rnd() * w, py = y + rnd() * h, r = 10 + rnd() * w * 0.28;
+        const fill = `hsla(${(hue + rnd() * 80 - 40 + 360) % 360},80%,${55 + rnd() * 30}%,${0.18 + rnd() * 0.3})`;
+        const kind = Math.floor(rnd() * 3);
+        if (kind === 0) out.push(`<circle cx="${px}" cy="${py}" r="${r}" fill="${fill}"/>`);
+        else if (kind === 1) out.push(`<polygon points="${px},${py - r} ${px + r},${py + r * 0.8} ${px - r},${py + r * 0.8}" fill="${fill}"/>`);
+        else out.push(`<rect x="${px - r}" y="${py - r / 4}" width="${r * 2}" height="${r / 2}" fill="${fill}" transform="rotate(${rnd() * 60 - 30} ${px} ${py})"/>`);
+      }
+    }
+    if (g.topic) out.push(`<text x="${x + 10}" y="${y + 24}" font-family="Silkscreen, 'Courier New', monospace" font-size="17" fill="#fff" opacity="0.92">${esc(g.topic.toUpperCase())}</text>`);
+    const lines = wrap(g.title || "Untitled", 13);
+    const bandH = 20 + lines.length * 18;
+    out.push(`<rect x="${x}" y="${y + h - bandH}" width="${w}" height="${bandH}" fill="#000" opacity="0.55"/>`);
+    lines.forEach((l, i) => out.push(`<text x="${x + 10}" y="${y + h - bandH + 24 + i * 18}" font-family="'IBM Plex Sans', system-ui, sans-serif" font-weight="700" font-size="17" fill="#fff">${esc(l)}</text>`));
+    if (g.size) out.push(`<rect x="${x + w - 52}" y="${y + 8}" width="44" height="16" rx="3" fill="#fff" opacity="0.9"/><text x="${x + w - 30}" y="${y + 20}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-weight="600" font-size="10" fill="#1e2025">${esc(g.size.toUpperCase())}</text>`);
+    out.push(`</g>`);
+    return out.join("");
+  }
+
+  // g: {title, genre, topic, size}; cart: true for cartridge consoles, false for discs.
+  function gameSVG(g, cart) {
+    const id = `g${++uid}`;
+    const out = [`<ellipse cx="210" cy="272" rx="120" ry="10" fill="#000" opacity="0.35"/>`];
+    if (cart) {
+      out.push(`<path d="M 120 30 h 180 a 8 8 0 0 1 8 8 v 214 a 8 8 0 0 1 -8 8 h -150 l -22 -18 h -8 a 8 8 0 0 1 -8 -8 v -196 a 8 8 0 0 1 8 -8 z" fill="#8d8f96"/>`);
+      for (let i = 0; i < 4; i++) out.push(`<rect x="132" y="${40 + i * 7}" width="156" height="3" rx="1.5" fill="#6f7178"/>`);
+      out.push(`<rect x="130" y="70" width="160" height="168" rx="4" fill="#e9e4d4"/>`);
+      out.push(coverArt(id, 136, 76, 148, 156, g));
+    } else {
+      out.push(`<rect x="100" y="20" width="220" height="246" rx="6" fill="#1b1c20"/><rect x="100" y="20" width="16" height="246" rx="3" fill="#33353c"/>`);
+      out.push(coverArt(id, 120, 26, 194, 234, g));
+    }
+    return `<svg viewBox="0 0 420 290" role="img" aria-label="Box art for ${esc(g.title || "your game")}" xmlns="http://www.w3.org/2000/svg">${out.join("")}</svg>`;
+  }
+
+  root.CT_MODELS = { consoleSVG, gameSVG };
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+// Console Tycoon touch UI. Landscape layout: the left "showroom" shows a model of the
+// console or game being worked on; the right panel holds the controls for making it.
 "use strict";
 
 (function () {
   const { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity, unitCost,
     fairPrice, devCost, devMonths, biggestSize, SLOTS, SIZE_NAMES, RETAIL_SHARE } = window.CT;
+  const { consoleSVG, gameSVG } = window.CT_MODELS;
 
   const SAVE_KEY = "console-tycoon-save-v2";
+  const UPRIGHT_KEY = "console-tycoon-upright";
   const app = document.getElementById("app");
 
   let s = null;          // game State
@@ -674,6 +921,7 @@ details.game summary::-webkit-details-marker { display: none; }
   let flash = null;      // {kind, text}
   let report = null;     // result of the last time skip
   let confirmKey = null; // a destructive button waiting for its second tap
+  let resetScroll = true;
 
   // ------------------------------------------------------------ utils
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -685,14 +933,13 @@ details.game summary::-webkit-details-marker { display: none; }
     if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
     return `${sign}$${Math.round(a)}`;
   }
+  const colorName = (hex) => (D.CONSOLE_COLORS.find(([, h]) => h === hex) || D.CONSOLE_COLORS[0])[0];
 
-  function store(value) {
-    try { if (value === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, value); } catch (e) { /* storage unavailable */ }
+  function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function storeSet(key, value) {
+    try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
   }
-  function loadSaved() {
-    try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
-  }
-  function autosave() { if (s) store(JSON.stringify(s)); }
+  function autosave() { if (s) storeSet(SAVE_KEY, JSON.stringify(s)); }
 
   function attempt(fn, okText) {
     try {
@@ -707,16 +954,17 @@ details.game summary::-webkit-details-marker { display: none; }
     }
   }
 
-  function go(v) {
+  function go(v, keep) {
     view = v;
-    draft = {};
+    draft = keep || {};
     confirmKey = null;
+    resetScroll = true;
     render();
-    window.scrollTo(0, 0);
   }
 
-  // ------------------------------------------------------------ pieces
-  function topbar() {
+  // ------------------------------------------------------------ showroom (left)
+  function lcd() {
+    if (!s) return "";
     const owners = s.consoles.reduce((t, c) => t + c.installed_base, 0);
     const copies = s.games.reduce((t, g) => t + g.units_sold, 0);
     return `
@@ -733,6 +981,70 @@ details.game summary::-webkit-details-marker { display: none; }
     </header>`;
   }
 
+  const newestConsole = () => (s && s.consoles.length ? s.consoles[s.consoles.length - 1] : null);
+
+  function consoleModel(c) {
+    return { svg: consoleSVG({ parts: c.parts, color: c.color, name: c.name }),
+      title: c.name,
+      caption: `${power(c)} power · ${appeal(c)} appeal · fits ${biggestSize(capacity(c))} games · ${colorName(c.color)}` };
+  }
+  function gameModel(g) {
+    const plat = g.platform && s.consoles.find((c) => c.name === g.platform);
+    const cart = !plat || capacity(plat) <= 2;
+    const kind = [g.size, g.topic, g.genre].filter(Boolean).join(" ");
+    return { svg: gameSVG(g, cart), title: g.title || "Untitled game",
+      caption: `${kind || "Pick a size, genre and topic"}${g.score ? ` · score ${g.score.toFixed(1)}` : ""}`,
+      focus: g.focus };
+  }
+
+  // What the showroom displays for the current screen.
+  function showcase() {
+    if (view === "design") {
+      return consoleModel({ parts: draft.parts, color: draft.color, name: (draft.name || "").trim() || "Your console" });
+    }
+    if (view === "game" && draft.focus) return gameModel(draft);
+    if (view === "games" && draft.show) {
+      const g = s.games.find((x) => x.title === draft.show);
+      if (g) return gameModel(g);
+    }
+    if (view === "consoles" && draft.show) {
+      const c = s.consoles.find((x) => x.name === draft.show);
+      if (c) return consoleModel(c);
+    }
+    if (!s) return consoleModel({ parts: Object.fromEntries(SLOTS.map((sl) => [sl, 0])), color: "#2c48c4", name: "Your console" });
+    const c = newestConsole();
+    if (c) return consoleModel(c);
+    return null;
+  }
+
+  function modelHTML() {
+    const m = showcase();
+    if (!m) return `<div class="model empty-model"><p>Your first console will be shown here.</p></div>`;
+    const bars = m.focus ? `<div class="focus-bars">${D.FOCUS_AREAS.map((a) =>
+      `<span><i style="width:${m.focus[a] * 10}%"></i><small>${a}</small></span>`).join("")}</div>` : "";
+    return `<div class="model">${m.svg}</div>
+      <div class="caption"><b>${esc(m.title)}</b><small>${esc(m.caption)}</small>${bars}</div>`;
+  }
+
+  function stageControls() {
+    if (!s) return `<div class="stage-title"><p class="eyebrow">A console-making game</p><h1 class="big-title">Console Tycoon</h1></div>`;
+    if (view !== "home") return "";
+    return `<div class="time">
+        <div class="skip">
+          <button class="btn dark" data-act="advance" data-arg="3">+3 mo</button>
+          <button class="btn dark" data-act="advance" data-arg="6">+6 mo</button>
+          <button class="btn dark" data-act="advance" data-arg="12">+1 yr</button>
+        </div>
+        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
+      </div>`;
+  }
+
+  function refreshModel() {
+    const el = document.getElementById("showroom");
+    if (el) el.innerHTML = modelHTML();
+  }
+
+  // ------------------------------------------------------------ panel (right)
   function flashBox() {
     if (!flash) return "";
     const f = flash;
@@ -740,13 +1052,9 @@ details.game summary::-webkit-details-marker { display: none; }
     return `<div class="flash ${f.kind}" role="status">${esc(f.text)}</div>`;
   }
 
-  function screen(title, body) {
-    return `${topbar()}
-      <main class="screen">
-        <div class="screen-head"><button class="back" data-act="go" data-arg="home">&larr; HQ</button><h1>${title}</h1></div>
-        ${flashBox()}
-        ${body}
-      </main>`;
+  function screen(title, body, backTo = "home") {
+    return `<div class="screen-head"><button class="back" data-act="go" data-arg="${backTo}">&larr; ${backTo === "home" ? "HQ" : "Back"}</button><h1>${title}</h1></div>
+      ${flashBox()}${body}`;
   }
 
   function newsLine(line) {
@@ -770,16 +1078,17 @@ details.game summary::-webkit-details-marker { display: none; }
 
   const progress = (frac) => `<div class="bar"><i style="width:${Math.max(4, Math.min(100, frac * 100))}%"></i></div>`;
 
-  function consoleRow(c) {
+  function consoleRow(c, tappable) {
+    const attrs = tappable ? `data-act="show" data-arg="${esc(c.name)}" role="button" tabindex="0"` : "";
+    const swatch = `<span class="swatch-dot" style="background:${c.color}"></span>`;
     if (c.status === "dev") {
       const total = devMonths(c.parts);
-      return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+      return `<div class="row ${tappable ? "tap" : ""} ${draft.show === c.name ? "on" : ""}" ${attrs}>${swatch}<div class="row-main"><b>${esc(c.name)}</b>
         <span class="sub">Being built · launches in ${c.dev_months_left} mo</span>${progress((total - c.dev_months_left) / total)}</div></div>`;
     }
     const state = c.status === "active" ? `$${c.price} · ${fmtNum(c.last_sales)} sold last month` : "Discontinued";
-    return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
-      <span class="sub">${state} · ${fmtNum(c.installed_base)} owners</span></div>
-      <span class="pill">${power(c)} pwr · ${appeal(c)} app</span></div>`;
+    return `<div class="row ${tappable ? "tap" : ""} ${draft.show === c.name ? "on" : ""}" ${attrs}>${swatch}<div class="row-main"><b>${esc(c.name)}</b>
+      <span class="sub">${state} · ${fmtNum(c.installed_base)} owners</span></div></div>`;
   }
 
   function gameRow(g) {
@@ -789,22 +1098,16 @@ details.game summary::-webkit-details-marker { display: none; }
       ${progress((total - g.months_left) / total)}</div></div>`;
   }
 
-  // ------------------------------------------------------------ views
   const views = {};
 
   views.start = () => {
     let savedInfo = "";
-    const saved = loadSaved();
+    const saved = storeGet(SAVE_KEY);
     if (saved) {
       try { const st = State.fromDict(JSON.parse(saved)); savedInfo = `${esc(st.company)} · ${st.date}`; } catch (e) { savedInfo = ""; }
     }
     return `
-    <main class="screen start">
-      <div class="title-card">
-        <p class="eyebrow">A console-making game</p>
-        <h1 class="big-title">Console<br>Tycoon</h1>
-        <p class="lede">You have a garage and ${fmtMoney(D.STARTING_MONEY)}. Design a games console, make games for it, and watch them sell.</p>
-      </div>
+      <p class="lede">You have a garage and ${fmtMoney(D.STARTING_MONEY)}. Design a games console, make games for it, and watch them sell.</p>
       ${flashBox()}
       ${savedInfo ? `<button class="btn primary wide" data-act="continue">Continue <span class="btn-sub">${savedInfo}</span></button>` : ""}
       <form class="card" data-form="new">
@@ -816,8 +1119,7 @@ details.game summary::-webkit-details-marker { display: none; }
       <div class="split">
         <button class="btn" data-act="go" data-arg="help">How to play</button>
         <button class="btn" data-act="go" data-arg="saves">Import a save</button>
-      </div>
-    </main>`;
+      </div>`;
   };
 
   views.home = () => {
@@ -829,7 +1131,7 @@ details.game summary::-webkit-details-marker { display: none; }
         <span class="delta ${report.delta < 0 ? "neg" : "pos"}">${signed(report.delta)}</span></div>
         ${report.lines.length ? `<ul class="news">${report.lines.map(newsLine).join("")}</ul>` : `<p class="hint">A quiet month.</p>`}
       </section>` : "";
-    const hw = consoles.length ? consoles.map(consoleRow).join("") + (s.consoleInDev() ? "" : `<button class="btn" data-act="go" data-arg="design">Design another console</button>`)
+    const hw = consoles.length ? consoles.map((c) => consoleRow(c, false)).join("") + (s.consoleInDev() ? "" : `<button class="btn" data-act="go" data-arg="design">Design another console</button>`)
       : `<div class="empty"><p>You don't have a console yet. Design one first; you can start a game for it while it's being built.</p>
          <button class="btn primary" data-act="go" data-arg="design">Design your first console</button></div>`;
     const sw = dev ? gameRow(dev) : s.consoles.length
@@ -838,28 +1140,17 @@ details.game summary::-webkit-details-marker { display: none; }
     const top = sellers.length ? `<section><h2>Best sellers last month</h2>${sellers.map((g) =>
       `<div class="row"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${esc(g.platform)} · score ${g.score.toFixed(1)}</span></div><span class="num">${fmtNum(g.last_sales)}</span></div>`).join("")}</section>` : "";
     const news = latestNews(8);
-    return `${topbar()}
-      <main class="screen home">
-        ${flashBox()}
-        ${rep}
-        <section><h2>Your consoles</h2>${hw}</section>
-        <section><h2>Your studio</h2>${sw}</section>
-        ${top}
-        <nav class="grid" aria-label="Actions">
-          <button class="tile" data-act="go" data-arg="consoles"><b>Consoles</b><small>${s.consoles.length} designed</small></button>
-          <button class="tile" data-act="go" data-arg="games"><b>Games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
-        </nav>
-        ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
-        <button class="btn quiet" data-act="go" data-arg="saves">Save, load &amp; how to play</button>
-      </main>
-      <footer class="dock">
-        <div class="skip">
-          <button class="btn" data-act="advance" data-arg="3">+3 mo</button>
-          <button class="btn" data-act="advance" data-arg="6">+6 mo</button>
-          <button class="btn" data-act="advance" data-arg="12">+1 yr</button>
-        </div>
-        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
-      </footer>`;
+    return `${flashBox()}
+      ${rep}
+      <section><h2>Your consoles</h2>${hw}</section>
+      <section><h2>Your studio</h2>${sw}</section>
+      ${top}
+      <nav class="grid" aria-label="Actions">
+        <button class="tile" data-act="go" data-arg="consoles"><b>Consoles</b><small>${s.consoles.length} designed</small></button>
+        <button class="tile" data-act="go" data-arg="games"><b>Games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
+      </nav>
+      ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
+      <button class="btn quiet" data-act="go" data-arg="saves">Save, load &amp; how to play</button>`;
   };
 
   // ---------- design a console
@@ -867,11 +1158,12 @@ details.game summary::-webkit-details-marker { display: none; }
     if (s.consoleInDev()) {
       return screen("Design a console", `<div class="empty"><p>Your hardware team is already building a console. Design the next one after it launches.</p></div>`);
     }
-    if (!draft.parts) draft.parts = Object.fromEntries(SLOTS.map((sl) => [sl, 0]));
     const proto = { parts: draft.parts };
     const cost = devCost(draft.parts);
     const fair = fairPrice(proto);
     const price = draft.priceTouched ? draft.price : fair;
+    const swatches = D.CONSOLE_COLORS.map(([name, hex]) =>
+      `<button class="swatch ${draft.color === hex ? "on" : ""}" style="--sw:${hex}" data-act="color" data-arg="${hex}" aria-label="${name}" aria-pressed="${draft.color === hex}"></button>`).join("");
     const slots = SLOTS.map((slot) => {
       const kind = D.POWER_SLOTS.includes(slot) ? "power" : "appeal";
       const opts = D.COMPONENTS[slot].map((t, i) => {
@@ -885,7 +1177,13 @@ details.game summary::-webkit-details-marker { display: none; }
     }).join("");
     const afford = cost <= s.money;
     return screen("Design a console", `
-      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
+      <section class="card">
+        <label for="cname">Console name</label>
+        <input id="cname" maxlength="16" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(draft.name || "")}" data-bind="name">
+        <label>Colour <span class="label-note">${colorName(draft.color)}</span></label>
+        <div class="swatches">${swatches}</div>
+      </section>
+      <p class="hint">CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
       ${slots}
       <section class="card spec">
         <h2>Spec sheet</h2>
@@ -897,8 +1195,6 @@ details.game summary::-webkit-details-marker { display: none; }
           <dt>Development</dt><dd>${fmtMoney(cost)} · ${devMonths(draft.parts)} months</dd>
           <dt>Fair price</dt><dd>about $${fair} <small>(you keep ${Math.round(RETAIL_SHARE * 100)}%, ~$${Math.round(fair * RETAIL_SHARE - unitCost(proto))} profit each)</small></dd>
         </dl>
-        <label for="cname">Console name</label>
-        <input id="cname" maxlength="24" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(draft.name || "")}" data-bind="name">
         <label for="cprice">Price ($)</label>
         <input id="cprice" type="number" inputmode="numeric" min="1" value="${price}" data-bind="price">
         <button class="btn primary wide" data-act="build" ${afford ? "" : "disabled"}>${afford ? `Build it for ${fmtMoney(cost)}` : `Need ${fmtMoney(cost)}`}</button>
@@ -914,11 +1210,9 @@ details.game summary::-webkit-details-marker { display: none; }
 
   views.game = () => {
     const d = draft;
-    if (!d.focus) d.focus = { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 };
     const plats = s.platforms();
     if (!plats.length) return screen("Make a game", `<div class="empty"><p>Design a console first, then make games for it.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
     if (s.gameInDev()) return screen("Make a game", `<div class="empty"><p>Your studio is busy with ${esc(s.gameInDev().title)}. Start the next game when it ships.</p></div>`);
-    if (!d.platform && plats.length === 1) d.platform = plats[0].name;
     const plat = d.platform ? s.console(d.platform) : null;
     if (d.size && plat && D.GAME_SIZES[d.size].capacity > capacity(plat)) d.size = null;
 
@@ -960,6 +1254,10 @@ details.game summary::-webkit-details-marker { display: none; }
 
     const ready = gameReady();
     return screen("Make a game", `
+      <section class="card">
+        <label for="gtitle">Title</label>
+        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
+      </section>
       <fieldset><legend>Console</legend>${platOpts}</fieldset>
       <fieldset><legend>Size</legend>${sizeOpts}</fieldset>
       <fieldset><legend>Genre</legend>${chips("genre", Object.keys(D.GENRES).sort())}</fieldset>
@@ -970,10 +1268,8 @@ details.game summary::-webkit-details-marker { display: none; }
         ${lessons}
       </fieldset>
       <section class="card">
-        <label for="gtitle">Title</label>
-        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
         <button class="btn primary wide" data-act="startgame" ${ready ? "" : "disabled"}>Start development</button>
-        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Pick a console, size, genre and topic, use all 10 focus points, and give it a title.</p>
+        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Give it a title, pick a console, size, genre and topic, and use all 10 focus points.</p>
       </section>`);
   };
 
@@ -982,7 +1278,7 @@ details.game summary::-webkit-details-marker { display: none; }
     if (!s.consoles.length) return screen("Consoles", `<div class="empty"><p>You haven't designed a console yet.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
     const cards = s.consoles.slice().reverse().map((c) => {
       const parts = SLOTS.map((sl) => part(c, sl).name).join(" · ");
-      const head = `${consoleRow(c)}<p class="hint">${parts}</p>`;
+      const head = `${consoleRow(c, true)}<p class="hint">${parts}</p>`;
       if (c.status === "dev") return `<section class="card">${head}</section>`;
       const own = s.games.filter((g) => g.platform === c.name && g.status === "released").length;
       const key = `retire:${c.name}`;
@@ -1003,7 +1299,8 @@ details.game summary::-webkit-details-marker { display: none; }
         <button class="btn danger" data-act="retire" data-arg="${esc(c.name)}">${confirmKey === key ? "Tap again to discontinue" : "Discontinue"}</button>` : ""}
       </section>`;
     }).join("");
-    return screen("Consoles", (s.consoleInDev() ? "" : `<button class="btn primary wide" data-act="go" data-arg="design">Design a new console</button>`) + cards);
+    return screen("Consoles", `<p class="hint">Tap a console to show it in the showroom.</p>` +
+      (s.consoleInDev() ? "" : `<button class="btn primary wide" data-act="go" data-arg="design">Design a new console</button>`) + cards);
   };
 
   // ---------- games
@@ -1012,24 +1309,25 @@ details.game summary::-webkit-details-marker { display: none; }
     if (!s.games.length) return screen("Games", newBtn || `<div class="empty"><p>Design a console first, then make games for it.</p></div>`);
     const dev = s.gameInDev();
     const released = s.games.filter((g) => g.status === "released").sort((a, b) => b.release_month - a.release_month);
-    return screen("Games", newBtn + (dev ? gameRow(dev) : "") + released.map((g) => {
+    return screen("Games", `<p class="hint">Tap a game to show its box and reviews.</p>` + newBtn + (dev ? gameRow(dev) : "") + released.map((g) => {
       const cls = g.score >= 8 ? "good" : g.score >= 6 ? "mid" : "bad";
-      return `<details class="row game">
-        <summary><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
-        <span class="score ${cls}">${g.score.toFixed(1)}</span></summary>
-        <div class="detail">
+      const open = draft.show === g.title;
+      return `<div class="row game ${open ? "on" : ""}">
+        <button class="game-head" data-act="show" data-arg="${esc(g.title)}" aria-expanded="${open}"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
+        <span class="score ${cls}">${g.score.toFixed(1)}</span></button>
+        ${open ? `<div class="detail">
           <p>Reviews ${g.reviews.join(" / ")} · Revenue ${fmtMoney(g.revenue)}</p>
           <p>Focus: ${D.FOCUS_AREAS.map((a) => `${a} ${g.focus[a]}`).join(", ")}</p>
           <ul>${g.feedback.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
-        </div>
-      </details>`;
+        </div>` : ""}
+      </div>`;
     }).join(""));
   };
 
   // ---------- saves & help
   const HELP = `
     <ul class="rules">
-      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
+      <li><b>Design a console</b> from six parts and paint it. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
       <li><b>Price it</b> near what buyers think is fair. Cheaper sells more units, but you make less on each one.</li>
       <li><b>Make games</b> for your consoles. You can start one while the console is being built; it ships at launch.</li>
       <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
@@ -1037,8 +1335,7 @@ details.game summary::-webkit-details-marker { display: none; }
       <li><b>Console sales fade</b> over time. Design a new one to keep growing.</li>
     </ul>`;
 
-  views.help = () => (s ? screen("How to play", HELP)
-    : `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>How to play</h1></div>${HELP}</main>`);
+  views.help = () => screen("How to play", HELP, s ? "home" : "start");
 
   views.saves = () => {
     const body = `
@@ -1057,8 +1354,7 @@ details.game summary::-webkit-details-marker { display: none; }
       ${s ? `<section class="card"><h2>Start over</h2><p class="hint">Ends this company and deletes its save on this device.</p>
         <button class="btn danger wide" data-act="restart">${confirmKey === "restart" ? "Tap again to delete and start over" : "Start a new company"}</button></section>
         <section><h2>How to play</h2>${HELP}</section>` : ""}`;
-    if (s) return screen("Save &amp; help", body);
-    return `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>Import a save</h1></div>${flashBox()}${body}</main>`;
+    return screen(s ? "Save &amp; help" : "Import a save", body, s ? "home" : "start");
   };
 
   // ------------------------------------------------------------ actions
@@ -1069,9 +1365,17 @@ details.game summary::-webkit-details-marker { display: none; }
   }
 
   const actions = {
-    go: (v) => go(v),
+    go: (v) => {
+      if (v === "design") return go(v, { parts: Object.fromEntries(SLOTS.map((sl) => [sl, 0])), color: D.CONSOLE_COLORS[0][1] });
+      if (v === "game") {
+        const plats = s.platforms();
+        const newest = plats[plats.length - 1];
+        return go(v, { focus: { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 }, platform: newest ? newest.name : null });
+      }
+      return go(v);
+    },
     continue: () => {
-      try { s = State.fromDict(JSON.parse(loadSaved())); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
+      try { s = State.fromDict(JSON.parse(storeGet(SAVE_KEY))); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
       report = null;
       go("home");
     },
@@ -1092,11 +1396,12 @@ details.game summary::-webkit-details-marker { display: none; }
       draft.parts[slot] = Number(i);
       render();
     },
+    color: (hex) => { draft.color = hex; render(); },
     build: () => {
       const proto = { parts: draft.parts };
       const price = draft.priceTouched ? Number(draft.price) : fairPrice(proto);
       const name = (draft.name || "").trim();
-      if (attempt(() => s.designConsole(name, draft.parts, price), `Engineers are building the ${name}. It launches in ${devMonths(draft.parts)} months.`)) go("home");
+      if (attempt(() => s.designConsole(name, draft.parts, price, draft.color), `Engineers are building the ${name}. It launches in ${devMonths(draft.parts)} months.`)) go("home");
       else render();
     },
     pick: (arg) => {
@@ -1116,6 +1421,7 @@ details.game summary::-webkit-details-marker { display: none; }
       if (attempt(() => s.startGame(d.title, d.genre, d.topic, d.size, d.platform, d.focus), `Development started on ${d.title.trim()}.`)) go("home");
       else render();
     },
+    show: (name) => { draft.show = draft.show === name && view === "games" ? null : name; render(); },
     setprice: (name) => {
       const input = document.querySelector(`[data-price-for="${CSS.escape(name)}"]`);
       const price = Number(input.value);
@@ -1152,13 +1458,36 @@ details.game summary::-webkit-details-marker { display: none; }
       if (confirmKey !== "restart") { confirmKey = "restart"; return render(); }
       s = null;
       report = null;
-      store(null);
+      storeSet(SAVE_KEY, null);
       go("start");
     },
+    upright: () => { storeSet(UPRIGHT_KEY, "1"); document.documentElement.classList.add("upright"); },
   };
 
   // ------------------------------------------------------------ wiring
-  function render() { app.innerHTML = (views[view] || views.start)(); }
+  function render() {
+    const old = app.querySelector(".panel");
+    const keep = old && !resetScroll ? old.scrollTop : 0;
+    app.innerHTML = `
+      <div class="layout">
+        <aside class="stage" aria-label="Showroom">
+          ${lcd()}
+          <div class="showroom" id="showroom">${modelHTML()}</div>
+          ${stageControls()}
+        </aside>
+        <main class="panel">${(views[view] || views.start)()}</main>
+      </div>
+      <div class="rotate" role="dialog" aria-label="Turn your phone sideways">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><rect x="38" y="18" width="44" height="78" rx="8" fill="none" stroke="currentColor" stroke-width="5"/>
+          <path d="M 24 70 a 40 40 0 0 1 20 -48" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M 36 14 l 9 8 l -10 6" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h1>Turn your phone sideways</h1>
+        <p>Console Tycoon is made for landscape: the showroom on the left, your workbench on the right.</p>
+        <button class="btn" data-act="upright">Play upright instead</button>
+      </div>`;
+    const panel = app.querySelector(".panel");
+    if (panel) panel.scrollTop = keep;
+    resetScroll = false;
+  }
 
   app.addEventListener("click", (e) => {
     const el = e.target.closest("[data-act]");
@@ -1173,8 +1502,9 @@ details.game summary::-webkit-details-marker { display: none; }
     if (!el.dataset || !el.dataset.bind) return;
     draft[el.dataset.bind] = el.value;
     if (el.dataset.bind === "price") draft.priceTouched = true;
+    // Update the model live without re-rendering the form, so the keyboard stays open.
+    if ((view === "design" && el.dataset.bind === "name") || (view === "game" && el.dataset.bind === "title")) refreshModel();
     if (view === "game" && el.dataset.bind === "title") {
-      // Update the start button without re-rendering, so the keyboard stays open.
       const ok = gameReady();
       const btn = app.querySelector('[data-act="startgame"]');
       const hint = document.getElementById("gamehint");
@@ -1193,12 +1523,16 @@ details.game summary::-webkit-details-marker { display: none; }
     }
   });
 
+  if (storeGet(UPRIGHT_KEY)) document.documentElement.classList.add("upright");
+
   // Keep the game across live updates of the page.
   function start(data) {
     if (data && data.save) {
       try { s = State.fromDict(data.save); view = data.view || "home"; draft = data.draft || {}; } catch (e) { s = null; }
     }
-    if (!s) view = view === "help" || view === "saves" ? view : "start";
+    if (!s) { view = view === "help" || view === "saves" ? view : "start"; }
+    if (view === "design" && !draft.parts) view = "home";
+    if (view === "game" && !draft.focus) view = "home";
     render();
   }
   const hot = window.claude && window.claude.hot;
