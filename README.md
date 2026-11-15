@@ -1,60 +1,33 @@
 # Console Tycoon
 
-A text-based business sim for the terminal: start a games company in a garage in 1985, **design your own consoles** from parts, then **make games for them**, competing against rival hardware makers until 2015.
+A phone-friendly game about designing games consoles and making games for them. It runs in any browser; there's nothing to install.
 
 ## Play
 
-Requires Python 3.10+ and nothing else.
+Open `index.html` in a browser. On a phone, host it somewhere (for example GitHub Pages for this repo) and open the link. The game saves on the device after every move. **Save & help → Export save** gives you a code to move your game to another device.
 
-```bash
-python3 play.py
-# or
-python3 -m console_tycoon
-```
+## How it plays
 
-Saves go to `saves/` in the current directory. Quitting with `q` saves automatically.
+- **Design a console** from six parts. CPU, GPU and memory add *power*; storage, controller and case add *appeal*. Storage also sets the biggest game that fits (cartridges hold Small games, disc drives hold bigger ones). Better parts cost more to develop and to build.
+- **Set a price.** Buyers compare it with a fair price based on the console's power and appeal. You keep 75% of the price, minus the cost of building each unit.
+- **Make games** for your consoles. Pick a size, genre and topic, then split 10 points between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. Four critics review each game and tell you what to change. Powerful consoles make graphics look better.
+- **Sales:** good games sell more consoles, and more console owners buy more games. Console sales fade over time, so design new ones to keep growing.
+- One console and one game can be in development at a time.
 
-### On your phone
-
-`web/index.html` is the same game as a touch-friendly web page: tap buttons instead of typing, no install, and it saves on your device after every move. Open it in your phone's browser (for example from a GitHub Pages site for this repo, or by copying the file to your phone).
-
-Use **Save & help → Export save** to copy a save code. Saves use the same format as the terminal version, so a save made on your phone can go into `saves/` on your computer, and the other way around.
-
-The web version is a JavaScript port of `sim.py` (`web/sim.js`). Game data is generated from `data.py`. After changing either, rebuild the page with:
-
-```bash
-python3 tools/build_web.py
-```
-
-## How it works
-
-**Consoles**
-- Pick a CPU, GPU, Memory, Storage, Controller and Case. CPU/GPU/Memory set *power*, the rest add *appeal*, and Storage limits how big a game can be (cartridges hold Small games; optical drives hold Large/AAA).
-- Power is judged against what the market expects right now, and that rises every year, so hardware gets old fast.
-- Set a price. Buyers compare it with what they think is fair. You keep 75% after retailers, minus build cost per unit (parts get cheaper as they age).
-- Successful consoles attract third-party games, which pay you royalties.
-- Run ad campaigns, change prices, or discontinue old hardware.
-
-**Games**
-- Make a game for your own console (you keep 70%) or license one for a rival's console (you keep 45%), which is handy before your hardware ships.
-- Choose size, genre and topic, then split 10 effort points between Gameplay, Graphics, Story and Audio. Every genre has a hidden ideal split, and some topics suit some genres. Critics' notes after each release hint at what you got wrong.
-- Every title on a console competes for its owners' spending. Great first-party games sell far more *and* help your console sell.
-
-**Company**
-- Research new parts with research points (more staff = faster). Each part has a year before which it can't be invented.
-- Hire staff for bigger games, move offices to grow, and keep an eye on monthly bills.
-- Three months in a row in debt means bankruptcy. Reach 2015 for your final score.
-
-## Code layout
+## Code
 
 | File | Purpose |
 | --- | --- |
-| `console_tycoon/data.py` | Parts, genres, topics, offices, names |
-| `console_tycoon/sim.py` | The simulation (no I/O); deterministic per seed |
-| `console_tycoon/ui.py` | Menus and screens |
-| `tests/test_sim.py` | Unit tests plus a scripted UI playthrough |
-| `web/sim.js`, `web/ui.js`, `web/style.css` | Phone/browser version |
-| `tools/build_web.py` | Builds `web/index.html` and `web/data.json` |
-| `tests/web_sim.test.js` | Tests for the browser version's simulation |
+| `web/data.js` | Parts, genres, topics and game sizes. Edit this to tweak the game. |
+| `web/sim.js` | The rules: designing, reviewing, sales. No UI code. |
+| `web/ui.js` | Screens and taps |
+| `web/style.css`, `web/shell.html` | Look and page skeleton |
+| `tools/build.js` | Builds `index.html` from the files in `web/` |
+| `tests/sim.test.js` | Tests for the rules |
 
-Run the tests with `python3 -m unittest discover -s tests` and `node --test tests/web_sim.test.js`.
+After changing anything in `web/`, rebuild and test (needs Node.js 18+):
+
+```bash
+node tools/build.js
+node --test
+```
