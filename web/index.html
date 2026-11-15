@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24262c">
+</head>
+<body>
+<title>Console Tycoon</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: one handheld-width column. A dark "LCD" status strip on top, console-plastic
+   panels below, and a thumb-reach dock at the bottom with the Next month button. */
+:root {
+  --plastic: #e4e1da;      /* page: light console plastic */
+  --panel: #f4f2ed;
+  --ink: #1e2025;
+  --muted: #66645e;
+  --line: #cbc6bb;
+  --accent: #2c48c4;       /* cobalt "A button" */
+  --accent-ink: #ffffff;
+  --led: #c8372a;          /* power-LED red for debt and danger */
+  --good: #287048;
+  --mid: #9a6a0a;
+  --lcd-bg: #24262c;
+  --lcd-fg: #ece9e1;
+  --lcd-dim: #9d9a92;
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
+    --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
+    --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
+  --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
+  --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--plastic); }
+body {
+  color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--lcd-bg);
+}
+#app { max-width: 600px; margin: 0 auto; }
+button, input, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h2 {
+  font: 600 12px/1.2 var(--font-data); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin-bottom: 8px;
+}
+code { font-family: var(--font-data); font-size: 0.9em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- LCD status strip */
+.lcd {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--lcd-bg); color: var(--lcd-fg);
+  padding-block: 10px 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.lcd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.logo {
+  font: 15px/1.2 var(--font-display); background: none; border: 0; padding: 0; color: var(--lcd-fg);
+  text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.date { font: 600 14px var(--font-data); color: var(--lcd-fg); white-space: nowrap; }
+.lcd-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.stat { display: flex; flex-direction: column; min-width: 0; }
+.stat b { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat small { font-size: 10px; color: var(--lcd-dim); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.neg b { color: #ff7a6e; }
+
+/* ---------- screens */
+.screen {
+  display: flex; flex-direction: column; gap: 18px;
+  padding-block: 16px 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.home { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+.screen-head { display: flex; align-items: center; gap: 12px; }
+.screen-head h1 { font: 20px/1.2 var(--font-display); }
+.back {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; font: 600 13px var(--font-data); cursor: pointer; white-space: nowrap;
+}
+section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; gap: 10px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.empty p { margin: 0; }
+
+/* ---------- start screen */
+.start { padding-top: max(32px, env(safe-area-inset-top, 0px)); }
+.title-card { display: flex; flex-direction: column; gap: 10px; padding-block: 12px; }
+.eyebrow { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0; }
+.big-title { font: clamp(40px, 13vw, 64px)/0.95 var(--font-display); letter-spacing: -0.01em; }
+.lede { margin: 0; max-width: 34em; font-size: 16px; }
+.final { font: 600 16px var(--font-data); margin: 0; }
+.final b { font-size: 28px; color: var(--accent); }
+
+/* ---------- rows */
+.row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px;
+}
+.card .row { background: none; border: 0; padding: 0; }
+.row-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.row-main b { overflow-wrap: anywhere; }
+.sub { color: var(--muted); font-size: 13px; }
+.num { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill {
+  font: 600 11px var(--font-data); padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.pill.good, .score.good { color: var(--good); border-color: var(--good); }
+.pill.mid, .score.mid { color: var(--mid); border-color: var(--mid); }
+.pill.bad, .score.bad { color: var(--led); border-color: var(--led); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
+/* ---------- news */
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.news li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
+.news time { font: 12px/1.7 var(--font-data); color: var(--muted); white-space: nowrap; }
+.news span { min-width: 0; overflow-wrap: anywhere; }
+.news li.note span { color: var(--muted); font-style: italic; }
+.news li.note time { visibility: hidden; }
+.news li.big span { font-weight: 600; }
+.news li.event span { color: var(--accent); }
+.news li.warn span { color: var(--led); font-weight: 600; }
+.report { border-color: var(--accent); }
+.report-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.report-head h2 { margin: 0; }
+.delta { font: 600 18px var(--font-data); font-variant-numeric: tabular-nums; }
+.delta.pos { color: var(--good); }
+.delta.neg { color: var(--led); }
+
+/* ---------- action grid */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px;
+  border-radius: var(--radius); padding: 12px; min-height: 64px; cursor: pointer;
+}
+.tile small { color: var(--muted); font-size: 12px; }
+.tile.ready { border-color: var(--accent); }
+.tile.ready small { color: var(--accent); font-weight: 600; }
+.tile:active, .btn:active, .opt:active, .chip:active { transform: translateY(1px); }
+
+/* ---------- buttons */
+.btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 44px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px; font-weight: 600;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--led); border-color: var(--led); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.wide { width: 100%; }
+.btn-sub { font-weight: 400; font-size: 12px; opacity: 0.85; }
+.split { display: flex; flex-wrap: wrap; gap: 8px; }
+.split .btn { flex: 1 1 120px; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+
+/* ---------- dock */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  max-width: 600px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--plastic); border-top: 1px solid var(--line);
+  padding-top: 10px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.skip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.skip .btn { min-height: 40px; font: 600 13px var(--font-data); }
+.next { width: 100%; min-height: 54px; font: 18px var(--font-display); }
+
+/* ---------- forms */
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+legend {
+  font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  padding: 0; margin-bottom: 6px; width: 100%;
+}
+.legend-note { float: right; text-transform: none; letter-spacing: 0; color: var(--accent); }
+label { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+input, textarea {
+  width: 100%; background: var(--plastic); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; font-size: 16px; min-width: 0;
+}
+textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
+.opt {
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 10px;
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 12px; cursor: pointer; width: 100%;
+}
+.opt b { grid-column: 1; }
+.opt small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.opt .num { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt.on b { color: var(--accent); }
+.opt:disabled { opacity: 0.5; cursor: default; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px;
+  font-size: 14px; cursor: pointer; min-height: 38px;
+}
+.chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.stepper {
+  display: grid; grid-template-columns: 82px 40px 30px 40px 1fr; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px;
+}
+.stepper span:first-child { font-weight: 600; font-size: 14px; }
+.step {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); border-bottom-width: 3px;
+  background: var(--plastic); font: 600 20px/1 var(--font-data); cursor: pointer;
+}
+.step:disabled { opacity: 0.35; }
+.stepper output { text-align: center; font: 600 18px var(--font-data); }
+.pips { color: var(--accent); letter-spacing: 1px; font-size: 12px; overflow: hidden; white-space: nowrap; }
+.lessons { border-left: 3px solid var(--accent); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
+.lessons h3 { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.lessons p { margin: 0; font-size: 13px; }
+
+/* ---------- data lists & tables */
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+dt { color: var(--muted); font-size: 13px; }
+dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+dd small { color: var(--muted); }
+dd.neg { color: var(--led); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { font: 600 11px var(--font-data); text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+td small { display: block; color: var(--muted); font-size: 11px; }
+tr.you td { color: var(--accent); font-weight: 600; }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+
+/* ---------- games list */
+details.game { display: block; padding: 0; }
+details.game summary { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; list-style: none; }
+details.game summary::-webkit-details-marker { display: none; }
+.score { font: 600 15px var(--font-data); border: 1px solid; border-radius: 8px; padding: 2px 8px; }
+.detail { padding: 0 12px 12px; font-size: 13px; color: var(--muted); }
+.detail p { margin: 0 0 4px; }
+.detail ul { margin: 4px 0 0; padding-left: 18px; }
+.rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; max-width: 65ch; }
+
+/* ---------- flash */
+.flash { padding: 10px 12px; border-radius: var(--radius); font-weight: 500; border: 1px solid; }
+.flash.ok { color: var(--good); border-color: var(--good); background: var(--panel); }
+.flash.err { color: var(--led); border-color: var(--led); background: var(--panel); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+<div id="app"><main class="screen"><p class="hint">Loading Console Tycoon…</p></main></div>
+<script>
+window.CT_DATA = {"START_YEAR":1985,"END_YEAR":2015,"COMPONENTS":{"CPU":[{"name":"8-bit Pico","power":4,"appeal":0,"unit_cost":20,"rp":0,"year":1985},{"name":"16-bit Duo","power":8,"appeal":0,"unit_cost":28,"rp":30,"year":1988},{"name":"32-bit Tri","power":18,"appeal":0,"unit_cost":40,"rp":70,"year":1992},{"name":"64-bit Quad","power":45,"appeal":0,"unit_cost":55,"rp":150,"year":1996},{"name":"Multicore X","power":150,"appeal":0,"unit_cost":75,"rp":300,"year":2001},{"name":"Octa Fusion","power":600,"appeal":0,"unit_cost":100,"rp":550,"year":2007},{"name":"Neural Core","power":1500,"appeal":0,"unit_cost":120,"rp":800,"year":2012}],"GPU":[{"name":"Tile Blitter","power":3,"appeal":0,"unit_cost":15,"rp":0,"year":1985},{"name":"Sprite Engine","power":6,"appeal":1,"unit_cost":22,"rp":30,"year":1988},{"name":"Polygon Pusher","power":18,"appeal":2,"unit_cost":35,"rp":70,"year":1992},{"name":"Texel Forge","power":50,"appeal":3,"unit_cost":50,"rp":150,"year":1996},{"name":"Shader Array","power":170,"appeal":4,"unit_cost":70,"rp":300,"year":2001},{"name":"Ray Weaver","power":750,"appeal":6,"unit_cost":95,"rp":550,"year":2007},{"name":"Photon Matrix","power":2000,"appeal":8,"unit_cost":115,"rp":800,"year":2012}],"Memory":[{"name":"64 KB RAM","power":2,"appeal":0,"unit_cost":10,"rp":0,"year":1985},{"name":"512 KB RAM","power":4,"appeal":0,"unit_cost":13,"rp":25,"year":1988},{"name":"4 MB RAM","power":12,"appeal":0,"unit_cost":18,"rp":60,"year":1992},{"name":"32 MB RAM","power":30,"appeal":0,"unit_cost":25,"rp":130,"year":1996},{"name":"512 MB RAM","power":90,"appeal":0,"unit_cost":35,"rp":260,"year":2001},{"name":"8 GB RAM","power":350,"appeal":0,"unit_cost":45,"rp":480,"year":2007},{"name":"32 GB RAM","power":800,"appeal":0,"unit_cost":55,"rp":700,"year":2012}],"Storage":[{"name":"ROM Cartridge","power":0,"appeal":1,"unit_cost":8,"rp":0,"year":1985,"capacity":1},{"name":"Mega Cartridge","power":0,"appeal":2,"unit_cost":14,"rp":30,"year":1988,"capacity":2},{"name":"CD-ROM Drive","power":0,"appeal":4,"unit_cost":20,"rp":80,"year":1993,"capacity":3},{"name":"DVD Drive","power":0,"appeal":6,"unit_cost":26,"rp":160,"year":1999,"capacity":3},{"name":"Blu-ray Drive","power":0,"appeal":8,"unit_cost":35,"rp":300,"year":2005,"capacity":4},{"name":"Solid State Drive","power":0,"appeal":11,"unit_cost":45,"rp":500,"year":2011,"capacity":4},{"name":"Cloud Hybrid","power":0,"appeal":13,"unit_cost":50,"rp":700,"year":2013,"capacity":4}],"Controller":[{"name":"Basic Pad","power":0,"appeal":1,"unit_cost":5,"rp":0,"year":1985},{"name":"Six-Button Pad","power":0,"appeal":2,"unit_cost":7,"rp":20,"year":1988},{"name":"Analog Stick Pad","power":0,"appeal":4,"unit_cost":10,"rp":60,"year":1995},{"name":"Rumble Pad","power":0,"appeal":6,"unit_cost":12,"rp":110,"year":1998},{"name":"Motion Wand","power":0,"appeal":9,"unit_cost":16,"rp":220,"year":2005},{"name":"Haptic Pad","power":0,"appeal":11,"unit_cost":18,"rp":400,"year":2011},{"name":"Neural Band","power":0,"appeal":13,"unit_cost":22,"rp":600,"year":2013}],"Case":[{"name":"Plastic Box","power":0,"appeal":1,"unit_cost":8,"rp":0,"year":1985},{"name":"Sleek Shell","power":0,"appeal":2,"unit_cost":9,"rp":15,"year":1987},{"name":"Translucent Shell","power":0,"appeal":3,"unit_cost":10,"rp":50,"year":1993},{"name":"Compact Slim","power":0,"appeal":5,"unit_cost":12,"rp":100,"year":2000},{"name":"Premium Alloy","power":0,"appeal":7,"unit_cost":16,"rp":200,"year":2006},{"name":"Designer Edition","power":0,"appeal":9,"unit_cost":20,"rp":350,"year":2012},{"name":"Morphing Shell","power":0,"appeal":11,"unit_cost":24,"rp":500,"year":2014}]},"CATEGORIES":["CPU","GPU","Memory","Storage","Controller","Case"],"POWER_CATEGORIES":["CPU","GPU","Memory"],"FOCUS_AREAS":["Gameplay","Graphics","Story","Audio"],"FOCUS_POINTS":10,"GENRES":{"Action":{"Gameplay":4,"Graphics":3,"Story":1,"Audio":2},"Adventure":{"Gameplay":2,"Graphics":2,"Story":5,"Audio":1},"Platformer":{"Gameplay":5,"Graphics":3,"Story":1,"Audio":1},"Puzzle":{"Gameplay":6,"Graphics":1,"Story":1,"Audio":2},"Racing":{"Gameplay":4,"Graphics":4,"Story":0,"Audio":2},"Rhythm":{"Gameplay":4,"Graphics":1,"Story":0,"Audio":5},"RPG":{"Gameplay":3,"Graphics":2,"Story":4,"Audio":1},"Shooter":{"Gameplay":4,"Graphics":4,"Story":1,"Audio":1},"Simulation":{"Gameplay":5,"Graphics":2,"Story":1,"Audio":2},"Sports":{"Gameplay":4,"Graphics":3,"Story":0,"Audio":3},"Strategy":{"Gameplay":5,"Graphics":1,"Story":3,"Audio":1}},"TOPICS":{"Aliens":[["Shooter","Strategy","Adventure"],["Sports"]],"Animals":[["Platformer","Simulation"],["Shooter"]],"Cars":[["Racing","Simulation"],["RPG","Adventure"]],"Cooking":[["Simulation","Puzzle"],["Shooter"]],"Cyberpunk":[["RPG","Shooter","Adventure"],["Sports"]],"Detective":[["Adventure","Puzzle"],["Racing","Sports"]],"Dinosaurs":[["Action","Adventure"],["Puzzle"]],"Fantasy":[["RPG","Adventure","Strategy"],["Racing","Sports"]],"Farming":[["Simulation","Strategy"],["Shooter","Racing"]],"Horror":[["Adventure","Shooter"],["Sports","Rhythm"]],"Medieval":[["Strategy","RPG","Action"],["Racing","Rhythm"]],"Music":[["Rhythm","Simulation"],["Shooter","Strategy"]],"Mythology":[["RPG","Action","Strategy"],["Racing"]],"Ninjas":[["Action","Platformer"],["Simulation"]],"Pirates":[["Adventure","Action","Strategy"],["Racing"]],"Robots":[["Action","Shooter","Strategy"],["Rhythm"]],"Soccer":[["Sports","Simulation"],["RPG","Adventure","Shooter"]],"Space":[["Shooter","Strategy","Simulation"],["Sports","Rhythm"]],"Spies":[["Action","Adventure"],["Rhythm"]],"Zombies":[["Shooter","Action"],["Puzzle","Sports"]]},"GAME_SIZES":{"Small":{"months":2,"cost":10000,"staff":1,"capacity":1,"price":20,"reach":0.6,"xp":0.2,"polish":0.95},"Medium":{"months":4,"cost":50000,"staff":3,"capacity":2,"price":35,"reach":1.0,"xp":0.35,"polish":1.0},"Large":{"months":7,"cost":250000,"staff":8,"capacity":3,"price":50,"reach":1.6,"xp":0.5,"polish":1.03},"AAA":{"months":11,"cost":1200000,"staff":20,"capacity":4,"price":60,"reach":2.4,"xp":0.7,"polish":1.06}},"OFFICES":[["Garage",5,500,0],["Small Office",15,4000,50000],["Studio",40,15000,300000],["Campus",120,60000,2000000]],"RIVAL_COMPANIES":["Vexatron","Kumo Systems","Pixelwerk","Orbitronic","Haldane Interactive","NovaByte","Quasar Toys","Ironleaf","Brightfold","Tanuki Labs"],"CONSOLE_PREFIXES":["Zap","Nova","Hyper","Ultra","Astro","Mega","Quantum","Turbo","Neo","Omni","Flux","Vortex","Echo","Prism"],"CONSOLE_SUFFIXES":["Station","Box","Cube","Sphere","Drive","Core","Wave","Grid","Pulse","Deck","Engine","Orb"],"MONTH_NAMES":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]};
+</script>
+<script>
+// Console Tycoon simulation: a JavaScript port of console_tycoon/sim.py.
+// Game data (DATA) is generated from console_tycoon/data.py by tools/build_web.py.
+// Saves use the same JSON shape as the Python version, so they move between both.
+"use strict";
+
+(function (root) {
+  const D = root.CT_DATA || (typeof require !== "undefined" ? require("./data.json") : null);
+
+  const PLAYER = "player";
+  const STARTING_MONEY = 150000;
+  const RETAIL_SHARE = 0.75;
+  const OWN_GAME_SHARE = 0.70;
+  const LICENSED_GAME_SHARE = 0.45;
+  const THIRD_PARTY_ROYALTY = 6;
+  const OUTSIDE_OPTION = 4.0;
+  const BANKRUPT_AFTER = 3;
+  const SIZE_NAMES = Object.keys(D.GAME_SIZES);
+
+  class GameError extends Error {}
+
+  // ------------------------------------------------------------ random
+  class Rng {
+    constructor(seed) { this.seed(seed); }
+    seed(n) { this.a = (Math.floor(n) ^ 0x9e3779b9) >>> 0; this.spare = null; for (let i = 0; i < 4; i++) this.random(); }
+    random() { // mulberry32
+      let t = (this.a = (this.a + 0x6d2b79f5) >>> 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    uniform(a, b) { return a + (b - a) * this.random(); }
+    randrange(n) { return Math.floor(this.random() * n); }
+    randint(a, b) { return a + this.randrange(b - a + 1); }
+    choice(arr) { return arr[this.randrange(arr.length)]; }
+    gauss(mu, sigma) {
+      const u = 1 - this.random(), v = this.random();
+      return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+  }
+
+  // ------------------------------------------------------------ consoles
+  const part = (c, cat) => D.COMPONENTS[cat][c.parts[cat]];
+  const withArticle = (word) => (/^[AEIOU]/.test(word) ? `an ${word}` : `a ${word}`);
+  const isPlayer = (c) => c.owner === PLAYER;
+  const power = (c) => D.POWER_CATEGORIES.reduce((t, cat) => t + part(c, cat).power, 0);
+  const appeal = (c) => D.CATEGORIES.reduce((t, cat) => t + part(c, cat).appeal, 0);
+  const capacity = (c) => part(c, "Storage").capacity;
+  const biggestSize = (cap) => SIZE_NAMES.filter((k) => D.GAME_SIZES[k].capacity <= cap).pop();
+
+  function newConsole(fields) {
+    return Object.assign({
+      name: "", owner: PLAYER, parts: {}, price: 0, status: "dev", dev_months_left: 0,
+      design_month: 0, launch_month: -1, installed_base: 0, third_party_titles: 0,
+      revenue: 0, profit: 0, last_sales: 0, hype_months: 0,
+    }, fields);
+  }
+
+  function newGame(fields) {
+    return Object.assign({
+      title: "", genre: "", topic: "", size: "", platform: "", focus: {}, staff: 0,
+      status: "dev", months_left: 0, start_month: 0, release_month: -1, score: 0.0,
+      reviews: [], feedback: [], units_sold: 0, revenue: 0, last_sales: 0,
+    }, fields);
+  }
+
+  const FIELDS = ["company", "seed", "money", "month", "staff", "office", "skill", "reputation",
+    "fans", "rp", "unlocked", "consoles", "games", "effects", "news", "debt_months", "over",
+    "over_reason", "history"];
+
+  class State {
+    constructor(fields) {
+      Object.assign(this, {
+        company: "", seed: 0, money: STARTING_MONEY, month: 0, staff: 3, office: 0, skill: 3.0,
+        reputation: 20.0, fans: 0, rp: 0.0, unlocked: Object.fromEntries(D.CATEGORIES.map((c) => [c, 0])),
+        consoles: [], games: [], effects: {}, news: [], debt_months: 0, over: false,
+        over_reason: "", history: [],
+      }, fields || {});
+      this.consoles = this.consoles.map(newConsole);
+      this.games = this.games.map(newGame);
+      this.rng = new Rng(this.seed * 1000 + this.month);
+    }
+
+    // ---------------------------------------------------------- calendar
+    get year() { return D.START_YEAR + Math.floor(this.month / 12); }
+    get yearsElapsed() { return this.month / 12; }
+    get date() { return `${D.MONTH_NAMES[this.month % 12]} ${this.year}`; }
+    get finalMonth() { return (D.END_YEAR - D.START_YEAR) * 12; }
+
+    // ---------------------------------------------------------- economy
+    get salary() { return Math.trunc(2000 * 1.035 ** this.yearsElapsed); }
+    get officeInfo() { return D.OFFICES[this.office]; }
+    get maxStaff() { return this.officeInfo[1]; }
+    get monthlyExpenses() { return this.staff * this.salary + this.officeInfo[2]; }
+    get busyStaff() { return this.games.filter((g) => g.status === "dev").reduce((t, g) => t + g.staff, 0); }
+    get freeStaff() { return this.staff - this.busyStaff; }
+    get rpPerMonth() { return this.staff * (0.5 + this.skill / 10); }
+
+    expectedPower(month) {
+      const y = (month === undefined ? this.month : month) / 12;
+      return 9 * 1.27 ** Math.min(y, 22) * 1.12 ** Math.max(0, y - 22);
+    }
+    tech(c, month) { return power(c) / this.expectedPower(month); }
+
+    unitCost(c) {
+      let total = 0;
+      for (const cat of D.CATEGORIES) {
+        const p = part(c, cat);
+        const age = Math.max(0, this.year - p.year);
+        total += p.unit_cost * Math.max(0.4, 1 - 0.06 * age);
+      }
+      if ("shortage" in this.effects) total *= 1.15;
+      return Math.round(total);
+    }
+
+    fairPrice(c) {
+      const base = 150 + 10 * this.yearsElapsed;
+      return Math.round(base * Math.min(this.tech(c), 2.5) ** 0.5);
+    }
+
+    // ---------------------------------------------------------- helpers
+    say(text) { this.news.push(`[${this.date}] ${text}`); }
+
+    console(name) {
+      const c = this.consoles.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      if (!c) throw new GameError(`No console named "${name}".`);
+      return c;
+    }
+    playerConsoles() { return this.consoles.filter(isPlayer); }
+    activeConsoles() { return this.consoles.filter((c) => c.status === "active"); }
+    platformsForGames() {
+      return this.consoles.filter((c) => c.status === "active" || (isPlayer(c) && c.status === "dev")
+        || (isPlayer(c) && c.status === "retired" && c.installed_base > 0));
+    }
+    nameTaken(name) {
+      const n = name.toLowerCase();
+      return this.consoles.some((c) => c.name.toLowerCase() === n) || this.games.some((g) => g.title.toLowerCase() === n);
+    }
+    spend(amount) {
+      if (amount > this.money) throw new GameError(`Not enough money: need ${fmtMoney(amount)}, have ${fmtMoney(this.money)}.`);
+      this.money -= amount;
+    }
+
+    // ---------------------------------------------------------- consoles
+    consoleDevCost(parts) {
+      const unit = D.CATEGORIES.reduce((t, c) => t + D.COMPONENTS[c][parts[c]].unit_cost, 0);
+      return Math.trunc(30000 * 1.6 ** Math.max(...Object.values(parts)) + unit * 500);
+    }
+    consoleDevMonths(parts) { return 3 + Math.max(...Object.values(parts)); }
+    previewConsole(parts, name) { return newConsole({ name: name || "Prototype", parts: { ...parts } }); }
+
+    designConsole(name, parts, price) {
+      name = (name || "").trim();
+      if (!name) throw new GameError("Your console needs a name.");
+      if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
+      for (const cat of D.CATEGORIES) {
+        if (!(cat in parts)) throw new GameError(`Missing a ${cat}.`);
+        if (parts[cat] < 0 || parts[cat] > this.unlocked[cat]) throw new GameError(`You haven't researched that ${cat} yet.`);
+      }
+      if (!(price > 0)) throw new GameError("Price must be positive.");
+      if (this.playerConsoles().some((c) => c.status === "dev")) throw new GameError("Your hardware team is already building a console.");
+      const cost = this.consoleDevCost(parts);
+      this.spend(cost);
+      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price),
+        dev_months_left: this.consoleDevMonths(parts), design_month: this.month });
+      this.consoles.push(c);
+      this.say(`Hardware team began building the ${name} (${fmtMoney(cost)}).`);
+      return c;
+    }
+
+    setPrice(name, price) {
+      const c = this.console(name);
+      if (!isPlayer(c)) throw new GameError("That's not your console.");
+      if (!(price > 0)) throw new GameError("Price must be positive.");
+      c.price = Math.round(price);
+    }
+
+    discontinue(name) {
+      const c = this.console(name);
+      if (!isPlayer(c) || c.status !== "active") throw new GameError("You can only discontinue your own consoles on sale.");
+      c.status = "retired";
+      this.say(`${c.name} discontinued after selling ${c.installed_base.toLocaleString()} units.`);
+    }
+
+    marketingCost() { return Math.trunc(20000 * 1.08 ** this.yearsElapsed); }
+    runMarketing(name) {
+      const c = this.console(name);
+      if (!isPlayer(c) || c.status === "retired") throw new GameError("You can only promote your own consoles.");
+      this.spend(this.marketingCost());
+      c.hype_months += 3;
+      this.say(`Ad campaign for the ${c.name} is running for 3 months.`);
+    }
+
+    // ---------------------------------------------------------- games
+    startGame(title, genre, topic, size, platform, focus) {
+      title = (title || "").trim();
+      if (!title) throw new GameError("Your game needs a title.");
+      if (this.nameTaken(title)) throw new GameError(`The name "${title}" is already in use.`);
+      if (!(genre in D.GENRES) || !(topic in D.TOPICS) || !(size in D.GAME_SIZES)) throw new GameError("Unknown genre, topic or size.");
+      const vals = D.FOCUS_AREAS.map((a) => focus[a]);
+      if (vals.some((v) => !Number.isInteger(v) || v < 0) || vals.reduce((a, b) => a + b, 0) !== D.FOCUS_POINTS) {
+        throw new GameError(`Focus must split exactly ${D.FOCUS_POINTS} points.`);
+      }
+      const plat = this.console(platform);
+      if (!this.platformsForGames().includes(plat)) throw new GameError(`You can't make games for the ${plat.name}.`);
+      const spec = D.GAME_SIZES[size];
+      if (capacity(plat) < spec.capacity) throw new GameError(`A ${size} game won't fit on the ${plat.name}'s ${part(plat, "Storage").name}.`);
+      if (spec.staff > this.freeStaff) throw new GameError(`A ${size} game needs ${spec.staff} free staff; you have ${this.freeStaff}.`);
+      this.spend(spec.cost);
+      const g = newGame({ title, genre, topic, size, platform: plat.name, focus: { ...focus },
+        staff: spec.staff, months_left: spec.months, start_month: this.month });
+      this.games.push(g);
+      this.say(`Started work on ${title} (${size} ${topic} ${genre}) for the ${plat.name}.`);
+      return g;
+    }
+
+    comboRating(genre, topic) {
+      const [good, bad] = D.TOPICS[topic];
+      if (good.includes(genre)) return "great";
+      if (bad.includes(genre)) return "poor";
+      return "okay";
+    }
+
+    focusMatch(genre, focus) {
+      const ideal = D.GENRES[genre];
+      const dist = D.FOCUS_AREAS.reduce((t, a) => t + Math.abs(focus[a] - ideal[a]), 0);
+      return 1 - dist / (2 * D.FOCUS_POINTS);
+    }
+
+    reviewGame(g) {
+      const plat = this.console(g.platform);
+      const match = this.focusMatch(g.genre, g.focus);
+      let q = 1.5 + 6.5 * match ** 1.5 + 2 * this.skill / 10;
+      q *= { great: 1.12, okay: 1.0, poor: 0.75 }[this.comboRating(g.genre, g.topic)];
+      const tf = Math.min(1.5, Math.max(0.4, this.tech(plat)));
+      q *= tf ** (0.05 * g.focus.Graphics);
+      q *= D.GAME_SIZES[g.size].polish;
+      const released = this.games.filter((x) => x.status === "released");
+      if (released.length) {
+        const last = released.reduce((a, b) => (b.release_month > a.release_month ? b : a));
+        if (last.genre === g.genre && last.topic === g.topic) q *= 0.85;
+      }
+      q += this.rng.gauss(0, 0.5);
+      g.reviews = [0, 1, 2, 3].map(() => Math.trunc(Math.min(10, Math.max(1, Math.round(q + this.rng.gauss(0, 0.6))))));
+      g.score = g.reviews.reduce((a, b) => a + b, 0) / g.reviews.length;
+      g.feedback = this.critique(g, tf);
+    }
+
+    critique(g, techFactor) {
+      const notes = [];
+      const ideal = D.GENRES[g.genre];
+      const diffs = Object.fromEntries(D.FOCUS_AREAS.map((a) => [a, g.focus[a] - ideal[a]]));
+      const worst = D.FOCUS_AREAS.reduce((a, b) => (Math.abs(diffs[b]) > Math.abs(diffs[a]) ? b : a));
+      if (Object.values(diffs).every((d) => Math.abs(d) <= 1)) notes.push(`Critics felt the focus was just right for ${withArticle(g.genre)} game.`);
+      else if (diffs[worst] < 0) notes.push(`Critics wanted more ${worst} from ${withArticle(g.genre)} game.`);
+      else notes.push(`Critics thought too much effort went into ${worst} for ${withArticle(g.genre)} game.`);
+      const rating = this.comboRating(g.genre, g.topic);
+      if (rating === "great") notes.push(`${g.topic} and ${g.genre} are a fantastic match!`);
+      else if (rating === "poor") notes.push(`Players found ${g.topic} a strange theme for ${withArticle(g.genre)} game.`);
+      if (techFactor < 0.7 && g.focus.Graphics >= 3) notes.push("The aging hardware held the graphics back.");
+      return notes;
+    }
+
+    releaseGame(g) {
+      const plat = this.console(g.platform);
+      if (plat.status === "dev") { g.months_left = 1; return; }
+      this.reviewGame(g);
+      g.status = "released";
+      g.release_month = this.month;
+      this.skill = Math.min(10.0, this.skill + D.GAME_SIZES[g.size].xp * (10.5 - this.skill) / 7);
+      const weight = 0.08 + 0.04 * SIZE_NAMES.indexOf(g.size);
+      this.reputation += (g.score * 10 - this.reputation) * weight;
+      this.say(`${g.title} released on the ${plat.name}! Reviews: ${g.reviews.join(" / ")} (avg ${g.score.toFixed(1)})`);
+      for (const note of g.feedback) this.say(`  - ${note}`);
+    }
+
+    // ---------------------------------------------------------- research
+    nextTier(cat) {
+      const idx = this.unlocked[cat] + 1;
+      return idx < D.COMPONENTS[cat].length ? D.COMPONENTS[cat][idx] : null;
+    }
+    research(cat) {
+      const tier = this.nextTier(cat);
+      if (!tier) throw new GameError(`No more ${cat} upgrades exist.`);
+      if (this.year < tier.year) throw new GameError(`${tier.name} can't be researched until ${tier.year}.`);
+      if (this.rp < tier.rp) throw new GameError(`Need ${tier.rp} research points; you have ${Math.floor(this.rp)}.`);
+      this.rp -= tier.rp;
+      this.unlocked[cat] += 1;
+      this.say(`Research complete: ${tier.name} (${cat}).`);
+      return tier;
+    }
+
+    // ---------------------------------------------------------- staff
+    hireCost() { return this.salary * 2; }
+    hire(n) {
+      if (n <= 0) throw new GameError("Hire at least one person.");
+      if (this.staff + n > this.maxStaff) throw new GameError(`Your ${this.officeInfo[0]} only fits ${this.maxStaff} staff.`);
+      this.spend(this.hireCost() * n);
+      this.skill = (this.skill * this.staff + Math.max(2.0, this.skill - 1) * n) / (this.staff + n);
+      this.staff += n;
+    }
+    fire(n) {
+      if (n <= 0) throw new GameError("Let go of at least one person.");
+      if (n > this.freeStaff) throw new GameError(`Only ${this.freeStaff} staff aren't working on a game.`);
+      if (this.staff - n < 1) throw new GameError("You need at least one employee (yourself!).");
+      this.staff -= n;
+    }
+    upgradeOffice() {
+      if (this.office + 1 >= D.OFFICES.length) throw new GameError("You already have the biggest office.");
+      this.spend(D.OFFICES[this.office + 1][3]);
+      this.office += 1;
+      this.say(`Moved into a ${this.officeInfo[0]}!`);
+    }
+
+    // ---------------------------------------------------------- market
+    attractiveness(c) {
+      let a = Math.min(this.tech(c), 2.5) ** 0.9;
+      a *= 1 + appeal(c) / 25;
+      const price = isPlayer(c) ? c.price : this.fairPrice(c) * 0.95;
+      a *= Math.min(4.0, Math.max(0.05, (this.fairPrice(c) / Math.max(1, price)) ** 2));
+      const age = this.month - c.launch_month;
+      if (isPlayer(c)) {
+        a *= this.libraryFactor(c);
+        a *= 0.6 + this.reputation / 100;
+        a *= 1 + Math.min(0.5, this.fans / 2000000);
+        if (c.hype_months > 0) a *= 1.5;
+        if ("retail_push" in this.effects) a *= 1.3;
+      } else {
+        a *= 0.6 + Math.min(1.4, age / 20);
+      }
+      if (age < 3) a *= 1.3;
+      return a;
+    }
+
+    libraryFactor(c) {
+      const recent = this.games.filter((g) => g.status === "released" && g.platform === c.name && this.month - g.release_month <= 36);
+      const impact = recent.map((g) => Math.max(0, g.score - 6) ** 1.5 * D.GAME_SIZES[g.size].reach).sort((a, b) => b - a);
+      const hits = impact.slice(0, 5).reduce((a, b) => a + b, 0);
+      return 0.5 + Math.min(0.8, recent.length * 0.1 + c.third_party_titles * 0.04) + Math.min(2.5, hits / 12);
+    }
+
+    marketSize() { return Math.trunc(8000 * 1.13 ** this.yearsElapsed); }
+
+    marketShares() {
+      const active = this.activeConsoles();
+      const weights = active.map((c) => this.attractiveness(c));
+      const total = weights.reduce((a, b) => a + b, 0) + OUTSIDE_OPTION;
+      const out = {};
+      active.forEach((c, i) => { out[c.name] = weights[i] / total; });
+      return out;
+    }
+
+    // ---------------------------------------------------------- rivals
+    rivalName() {
+      for (let i = 0; i < 100; i++) {
+        let name = `${this.rng.choice(D.CONSOLE_PREFIXES)} ${this.rng.choice(D.CONSOLE_SUFFIXES)}`;
+        if (this.rng.random() < 0.3) name += ` ${this.rng.randint(2, 9)}`;
+        if (!this.nameTaken(name)) return name;
+      }
+      return `Console ${this.consoles.length + 1}`;
+    }
+
+    spawnRival(launchAge = 0) {
+      const parts = {};
+      for (const cat of D.CATEGORIES) {
+        let best = 0;
+        D.COMPONENTS[cat].forEach((t, i) => { if (t.year <= this.year) best = i; });
+        parts[cat] = Math.max(0, best - (this.rng.random() < 0.3 ? 1 : 0));
+      }
+      const busy = new Set(this.activeConsoles().map((c) => c.owner));
+      let owners = D.RIVAL_COMPANIES.filter((o) => !busy.has(o));
+      if (!owners.length) owners = D.RIVAL_COMPANIES;
+      const c = newConsole({ name: this.rivalName(), owner: this.rng.choice(owners), parts,
+        status: "active", launch_month: this.month - launchAge });
+      c.price = Math.round(this.fairPrice(c) * 0.95);
+      c.installed_base = launchAge * 1500;
+      this.consoles.push(c);
+      return c;
+    }
+
+    updateRivals() {
+      for (const c of this.activeConsoles().filter((x) => !isPlayer(x))) {
+        if (this.tech(c) < 0.3 || this.month - c.launch_month > 96) {
+          c.status = "retired";
+          this.say(`${c.owner} discontinued the ${c.name}.`);
+        }
+      }
+      const rivals = this.activeConsoles().filter((x) => !isPlayer(x));
+      const newest = rivals.length ? Math.max(...rivals.map((c) => c.launch_month)) : -999;
+      const wantNew = rivals.length < 2 || (rivals.length < 4 && this.month - newest > 30 && this.rng.random() < 0.08);
+      if (wantNew) {
+        const c = this.spawnRival();
+        this.say(`${c.owner} launched the ${c.name} at $${c.price}!`);
+      }
+      for (const c of this.activeConsoles()) if (!isPlayer(c)) c.price = Math.round(this.fairPrice(c) * 0.95);
+    }
+
+    // ---------------------------------------------------------- software
+    gameWeight(g) {
+      const age = this.month - g.release_month;
+      if (age > 48) return 0;
+      return 2.0 ** (g.score - 5) * D.GAME_SIZES[g.size].reach * 0.8 ** age;
+    }
+    backgroundWeight(c) {
+      if (isPlayer(c)) return 1 + Math.min(15.0, c.third_party_titles * 0.3);
+      return 4 + Math.min(60, Math.max(0, this.month - c.launch_month)) / 5;
+    }
+    softwareSales() {
+      let income = 0;
+      const fanBoost = 1 + Math.min(0.5, this.fans / 1000000);
+      for (const g of this.games) g.last_sales = 0;
+      for (const c of this.consoles) {
+        if (c.status === "dev" || c.installed_base === 0) continue;
+        const mine = this.games.filter((g) => g.status === "released" && g.platform === c.name);
+        const weights = mine.map((g) => this.gameWeight(g) * fanBoost);
+        const bg = this.backgroundWeight(c);
+        const total = weights.reduce((a, b) => a + b, 0) + bg;
+        let demand = c.installed_base * 0.08 * total / (total + 5);
+        if (c.status !== "active") demand *= 0.4;
+        const share = isPlayer(c) ? OWN_GAME_SHARE : LICENSED_GAME_SHARE;
+        mine.forEach((g, i) => {
+          const copies = Math.trunc(demand * weights[i] / total);
+          if (copies < 20) return;
+          const rev = Math.trunc(copies * D.GAME_SIZES[g.size].price * share);
+          g.last_sales = copies;
+          g.units_sold += copies;
+          g.revenue += rev;
+          income += rev;
+          if (g.score >= 7) this.fans += Math.trunc(copies * 0.1);
+        });
+        if (isPlayer(c) && c.third_party_titles) {
+          const royalty = Math.trunc(demand * bg / total) * THIRD_PARTY_ROYALTY;
+          c.revenue += royalty;
+          c.profit += royalty;
+          income += royalty;
+        }
+      }
+      return income;
+    }
+
+    // ---------------------------------------------------------- events
+    randomEvent() {
+      if (this.rng.random() > 0.08) return;
+      const mineActive = this.playerConsoles().some((c) => c.status === "active");
+      const roll = this.rng.randrange(6);
+      if (roll === 0 && mineActive) {
+        this.effects.retail_push = 1;
+        this.say("EVENT: A big retail chain is featuring your hardware this month! (+30% appeal)");
+      } else if (roll === 1 && mineActive) {
+        this.effects.shortage = 3;
+        this.say("EVENT: Chip shortage! Manufacturing costs +15% for 3 months.");
+      } else if (roll === 2) {
+        this.reputation = Math.min(100.0, this.reputation + 5);
+        this.say("EVENT: A gaming magazine profiles your company. Reputation +5.");
+      } else if (roll === 3) {
+        const gained = Math.trunc(5000 + this.fans * 0.05);
+        this.fans += gained;
+        this.say(`EVENT: A fan video goes viral. +${gained.toLocaleString()} fans.`);
+      } else if (roll === 4) {
+        const amount = Math.trunc(10000 * 1.05 ** this.yearsElapsed);
+        this.money += amount;
+        this.say(`EVENT: Government tech grant awarded: +${fmtMoney(amount)}.`);
+      } else if (roll === 5 && this.money > 50000) {
+        const amount = Math.min(Math.trunc(this.money * 0.05), 250000);
+        this.money -= amount;
+        this.say(`EVENT: Patent troll lawsuit settled for ${fmtMoney(amount)}.`);
+      }
+    }
+
+    // ---------------------------------------------------------- the clock
+    advance() {
+      if (this.over) return [];
+      const start = this.news.length;
+      this.month += 1;
+      this.rng.seed(this.seed * 1000 + this.month);
+      let income = 0;
+      this.rp += this.rpPerMonth;
+
+      for (const c of this.playerConsoles()) {
+        if (c.status === "dev") {
+          c.dev_months_left -= 1;
+          if (c.dev_months_left <= 0) {
+            c.status = "active";
+            c.launch_month = this.month;
+            this.say(`The ${c.name} is in stores! Launch price $${c.price}.`);
+          }
+        }
+      }
+      for (const g of this.games) {
+        if (g.status === "dev") {
+          g.months_left -= 1;
+          if (g.months_left <= 0) this.releaseGame(g);
+        }
+      }
+      this.updateRivals();
+
+      const buyers = this.marketSize();
+      for (const [name, share] of Object.entries(this.marketShares())) {
+        const c = this.console(name);
+        const units = Math.trunc(buyers * share * this.rng.uniform(0.9, 1.1));
+        c.last_sales = units;
+        c.installed_base += units;
+        if (isPlayer(c)) {
+          const rev = Math.trunc(units * c.price * RETAIL_SHARE);
+          const profit = rev - units * this.unitCost(c);
+          c.revenue += rev;
+          c.profit += profit;
+          income += profit;
+        }
+      }
+      for (const c of this.consoles) {
+        if (c.status !== "active") c.last_sales = 0;
+        if (c.hype_months > 0) c.hype_months -= 1;
+      }
+
+      for (const c of this.playerConsoles()) {
+        if (c.status === "active") {
+          const expected = c.installed_base / 150000;
+          const tries = Math.trunc(expected) + 1;
+          for (let i = 0; i < tries; i++) if (this.rng.random() < Math.min(1.0, expected)) c.third_party_titles += 1;
+        }
+      }
+      income += this.softwareSales();
+
+      this.money += income - this.monthlyExpenses;
+      for (const k of Object.keys(this.effects)) {
+        this.effects[k] -= 1;
+        if (this.effects[k] <= 0) delete this.effects[k];
+      }
+      this.randomEvent();
+
+      this.history.push([this.month, this.money]);
+      if (this.money < 0) {
+        this.debt_months += 1;
+        if (this.debt_months >= BANKRUPT_AFTER) {
+          this.over = true;
+          this.over_reason = "bankrupt";
+          this.say("Your creditors have closed the company. GAME OVER.");
+        } else {
+          this.say(`WARNING: You are in debt! Bankruptcy in ${BANKRUPT_AFTER - this.debt_months} month(s) if this continues.`);
+        }
+      } else {
+        this.debt_months = 0;
+      }
+      if (!this.over && this.month >= this.finalMonth) {
+        this.over = true;
+        this.over_reason = "retired";
+        this.say("Thirty years in the console business. Time to retire!");
+      }
+      const fresh = this.news.slice(start);
+      this.news = this.news.slice(-200);
+      return fresh;
+    }
+
+    // ---------------------------------------------------------- scoring & saves
+    finalScore() {
+      const units = this.playerConsoles().reduce((t, c) => t + c.installed_base, 0);
+      const gameUnits = this.games.reduce((t, g) => t + g.units_sold, 0);
+      const best = Math.max(0, ...this.games.filter((g) => g.status === "released").map((g) => g.score));
+      return Math.trunc(Math.max(0, this.money) / 1000 + units / 1000 + gameUnits / 2000 + this.reputation * 10 + best * 50);
+    }
+    toDict() { return Object.fromEntries(FIELDS.map((f) => [f, this[f]])); }
+    toJSON() { return this.toDict(); }
+    static fromDict(d) {
+      for (const f of FIELDS) if (!(f in d)) throw new GameError(`Save is missing "${f}".`);
+      return new State(d);
+    }
+  }
+
+  function createGame(company, seed) {
+    if (seed === undefined) seed = 1 + Math.floor(Math.random() * 999999);
+    const s = new State({ company, seed });
+    s.spawnRival(14);
+    s.spawnRival(5);
+    s.say(`${company} opens its doors in a garage. Design a console, then make games for it!`);
+    return s;
+  }
+
+  function fmtMoney(n) {
+    const sign = n < 0 ? "-" : "";
+    n = Math.abs(n);
+    if (n >= 1e9) return `${sign}$${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6) return `${sign}$${(n / 1e6).toFixed(2)}M`;
+    if (n >= 10000) return `${sign}$${Math.round(n / 1000)}K`;
+    return `${sign}$${Math.round(n).toLocaleString("en-US")}`;
+  }
+  function fmtNum(n) {
+    if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+    if (n >= 10000) return `${Math.round(n / 1000)}K`;
+    return Math.trunc(n).toLocaleString("en-US");
+  }
+
+  const api = { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity,
+    isPlayer, biggestSize, PLAYER, OWN_GAME_SHARE, LICENSED_GAME_SHARE, RETAIL_SHARE, SIZE_NAMES };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.CT = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+// Console Tycoon touch UI. Renders screens into #app and handles taps.
+"use strict";
+
+(function () {
+  const { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity, isPlayer,
+    biggestSize, SIZE_NAMES, OWN_GAME_SHARE, LICENSED_GAME_SHARE } = window.CT;
+
+  const SAVE_KEY = "console-tycoon-save-v1";
+  const app = document.getElementById("app");
+
+  let s = null;          // game State
+  let view = "start";
+  let draft = {};        // in-progress form values for the current screen
+  let flash = null;      // {kind, text}
+  let report = null;     // result of the last time skip
+  let confirmKey = null; // a destructive button waiting for its second tap
+
+  // ------------------------------------------------------------ utils
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const signed = (n) => (n >= 0 ? "+" : "") + fmtMoney(n);
+  // Compact money for the narrow status strip: $950, $6.6K, $1.2M.
+  function short(n) {
+    const a = Math.abs(n), sign = n < 0 ? "-" : "";
+    if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(1)}B`;
+    if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`;
+    if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
+    return `${sign}$${Math.round(a)}`;
+  }
+
+  function store(key, value) {
+    try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
+  }
+  function load(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function autosave() { if (s) store(SAVE_KEY, JSON.stringify(s)); }
+
+  function attempt(fn, okText) {
+    try {
+      fn();
+      if (okText) flash = { kind: "ok", text: okText };
+      autosave();
+      return true;
+    } catch (e) {
+      if (!(e instanceof GameError)) throw e;
+      flash = { kind: "err", text: e.message };
+      return false;
+    }
+  }
+
+  function go(v, keepDraft) {
+    view = v;
+    if (!keepDraft) draft = {};
+    confirmKey = null;
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  // ------------------------------------------------------------ pieces
+  function topbar() {
+    if (!s) return "";
+    const debt = s.money < 0 ? " neg" : "";
+    return `
+    <header class="lcd">
+      <div class="lcd-head">
+        <button class="logo" data-act="go" data-arg="home" aria-label="Back to headquarters">${esc(s.company)}</button>
+        <span class="date">${s.date}</span>
+      </div>
+      <div class="lcd-stats">
+        <div class="stat${debt}"><b>${short(s.money)}</b><small>cash</small></div>
+        <div class="stat"><b>${short(s.monthlyExpenses)}</b><small>bills</small></div>
+        <div class="stat"><b>${s.freeStaff}/${s.staff}</b><small>free</small></div>
+        <div class="stat"><b>${Math.round(s.reputation)}</b><small>rep</small></div>
+        <div class="stat"><b>${Math.floor(s.rp)}</b><small>RP</small></div>
+      </div>
+    </header>`;
+  }
+
+  function flashBox() {
+    if (!flash) return "";
+    const f = flash;
+    flash = null;
+    return `<div class="flash ${f.kind}" role="status">${esc(f.text)}</div>`;
+  }
+
+  function screen(title, body, back = true) {
+    return `
+      ${topbar()}
+      <main class="screen">
+        <div class="screen-head">
+          ${back ? `<button class="back" data-act="go" data-arg="home">&larr; HQ</button>` : ""}
+          <h1>${title}</h1>
+        </div>
+        ${flashBox()}
+        ${body}
+      </main>`;
+  }
+
+  function newsLine(line) {
+    const m = line.match(/^\[(\w+ \d+)\] (.*)$/);
+    const when = m ? m[1] : "";
+    let text = m ? m[2] : line;
+    let cls = "";
+    if (/^EVENT:/.test(text)) { cls = "event"; text = text.replace(/^EVENT: /, ""); }
+    if (/WARNING|GAME OVER/.test(text)) cls = "warn";
+    if (/^ {2}- /.test(text)) { cls += " note"; text = text.trim().slice(2); }
+    if (/released on|is in stores/.test(text)) cls += " big";
+    return `<li class="${cls}"><time>${esc(when)}</time><span>${esc(text)}</span></li>`;
+  }
+
+  function consoleSummary(c) {
+    if (c.status === "dev") {
+      const total = s.consoleDevMonths(c.parts);
+      const done = total - c.dev_months_left;
+      return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+        <span class="sub">Hardware in development · launches in ${c.dev_months_left} mo</span>
+        ${progress(done / total)}</div></div>`;
+    }
+    const t = s.tech(c);
+    return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+      <span class="sub">${c.status === "active" ? "On sale" : "Discontinued"} · $${c.price} · ${fmtNum(c.installed_base)} owners · ${fmtNum(c.last_sales)}/mo</span>
+      </div><span class="pill ${t < 0.5 ? "bad" : t < 0.8 ? "mid" : "good"}" title="Power compared with what buyers expect today">${pct(t)} power</span></div>`;
+  }
+
+  function progress(frac) {
+    return `<div class="bar"><i style="width:${Math.max(4, Math.min(100, frac * 100))}%"></i></div>`;
+  }
+
+  function canResearchSomething() {
+    return D.CATEGORIES.some((cat) => { const t = s.nextTier(cat); return t && s.year >= t.year && s.rp >= t.rp; });
+  }
+
+  // ------------------------------------------------------------ views
+  const views = {};
+
+  views.start = () => {
+    const saved = load(SAVE_KEY);
+    let savedInfo = "";
+    if (saved) {
+      try { const d = JSON.parse(saved); savedInfo = `${esc(d.company)} · ${D.MONTH_NAMES[d.month % 12]} ${D.START_YEAR + Math.floor(d.month / 12)}`; } catch (e) { savedInfo = ""; }
+    }
+    return `
+    <main class="screen start">
+      <div class="title-card">
+        <p class="eyebrow">A text tycoon · ${D.START_YEAR}–${D.END_YEAR}</p>
+        <h1 class="big-title">Console<br>Tycoon</h1>
+        <p class="lede">You have a garage, three friends and $150K. Design a games console, make games for it, and outlast the giants until ${D.END_YEAR}.</p>
+      </div>
+      ${flashBox()}
+      ${savedInfo ? `<button class="btn primary wide" data-act="continue">Continue <span class="btn-sub">${savedInfo}</span></button>` : ""}
+      <form class="card" data-form="new">
+        <label for="company">Company name</label>
+        <input id="company" name="company" maxlength="30" autocomplete="off" placeholder="Garage Games" value="${esc(draft.company || "")}" data-bind="company">
+        <button class="btn ${savedInfo ? "" : "primary"} wide" type="submit">${savedInfo ? "Start a new company" : "Start your company"}</button>
+        ${savedInfo ? `<p class="hint">Starting over replaces your saved game.</p>` : ""}
+      </form>
+      <div class="split">
+        <button class="btn" data-act="go" data-arg="help">How to play</button>
+        <button class="btn" data-act="go" data-arg="saves">Import a save</button>
+      </div>
+    </main>`;
+  };
+
+  views.home = () => {
+    const mine = s.playerConsoles().filter((c) => c.status !== "retired");
+    const dev = s.games.filter((g) => g.status === "dev");
+    const sellers = s.games.filter((g) => g.status === "released" && g.last_sales).sort((a, b) => b.last_sales - a.last_sales).slice(0, 3);
+    let rep = "";
+    if (report) {
+      rep = `<section class="card report">
+        <div class="report-head"><h2>${report.months === 1 ? s.date : `${report.from} – ${s.date}`}</h2>
+        <span class="delta ${report.delta < 0 ? "neg" : "pos"}">${signed(report.delta)}</span></div>
+        ${report.lines.length ? `<ul class="news">${report.lines.map(newsLine).join("")}</ul>` : `<p class="hint">A quiet month.</p>`}
+      </section>`;
+    }
+    const hw = mine.length ? mine.map(consoleSummary).join("")
+      : `<div class="empty"><p>You don't have a console yet. Design one, then make a game for a rival's console while it's being built.</p>
+         <button class="btn primary" data-act="go" data-arg="design">Design your first console</button></div>`;
+    const sw = dev.length ? dev.map((g) => {
+      const total = D.GAME_SIZES[g.size].months;
+      return `<div class="row"><div class="row-main"><b>${esc(g.title)}</b>
+        <span class="sub">${g.size} ${g.topic} ${g.genre} for ${esc(g.platform)} · ${g.months_left} mo left</span>
+        ${progress((total - g.months_left) / total)}</div></div>`;
+    }).join("") : `<div class="empty"><p>No games in development. ${s.freeStaff} staff are free.</p>
+      <button class="btn" data-act="go" data-arg="game">Make a game</button></div>`;
+    const top = sellers.length ? `<section><h2>Best sellers last month</h2>${sellers.map((g) => `<div class="row"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${esc(g.platform)} · score ${g.score.toFixed(1)}</span></div><span class="num">${fmtNum(g.last_sales)}</span></div>`).join("")}</section>` : "";
+    // Newest first, but keep critic notes under the headline they belong to.
+    const groups = [];
+    for (const line of s.news.slice(-10)) {
+      if (/^\[[^\]]+\] {2}- /.test(line) && groups.length) groups[groups.length - 1].push(line);
+      else groups.push([line]);
+    }
+    const news = groups.reverse().flat().slice(0, 10);
+    return `
+      ${topbar()}
+      <main class="screen home">
+        ${flashBox()}
+        ${rep}
+        <section><h2>Hardware</h2>${hw}</section>
+        <section><h2>In the studio</h2>${sw}</section>
+        ${top}
+        <nav class="grid" aria-label="Actions">
+          <button class="tile" data-act="go" data-arg="design"><b>Design console</b><small>Build new hardware</small></button>
+          <button class="tile" data-act="go" data-arg="game"><b>Make a game</b><small>${s.freeStaff} staff free</small></button>
+          <button class="tile" data-act="go" data-arg="consoles"><b>Your consoles</b><small>Price, ads, retire</small></button>
+          <button class="tile" data-act="go" data-arg="games"><b>Your games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
+          <button class="tile ${canResearchSomething() ? "ready" : ""}" data-act="go" data-arg="research"><b>Research</b><small>${canResearchSomething() ? "Upgrade ready!" : `${Math.floor(s.rp)} points`}</small></button>
+          <button class="tile" data-act="go" data-arg="staff"><b>Staff & office</b><small>${s.officeInfo[0]}</small></button>
+          <button class="tile" data-act="go" data-arg="market"><b>Market report</b><small>${s.activeConsoles().length} consoles on sale</small></button>
+          <button class="tile" data-act="go" data-arg="saves"><b>Save & help</b><small>Export, import, rules</small></button>
+        </nav>
+        ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
+      </main>
+      <footer class="dock">
+        <div class="skip">
+          <button class="btn" data-act="advance" data-arg="3">+3 mo</button>
+          <button class="btn" data-act="advance" data-arg="6">+6 mo</button>
+          <button class="btn" data-act="advance" data-arg="12">+1 yr</button>
+        </div>
+        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
+      </footer>`;
+  };
+
+  // ---------- design a console
+  function designDraft() {
+    if (!draft.parts) draft.parts = { ...s.unlocked };
+    return draft;
+  }
+
+  views.design = () => {
+    if (s.playerConsoles().some((c) => c.status === "dev")) {
+      return screen("Design a console", `<div class="empty"><p>Your hardware team is already building a console. You can design the next one after it launches.</p></div>`);
+    }
+    const d = designDraft();
+    const proto = s.previewConsole(d.parts);
+    const cost = s.consoleDevCost(d.parts);
+    const months = s.consoleDevMonths(d.parts);
+    const fair = s.fairPrice(proto);
+    const price = d.priceTouched ? d.price : fair;
+    const cats = D.CATEGORIES.map((cat) => {
+      const tiers = D.COMPONENTS[cat].slice(0, s.unlocked[cat] + 1);
+      const opts = tiers.map((t, i) => {
+        const bits = [];
+        if (t.power) bits.push(`${t.power} power`);
+        if (t.appeal) bits.push(`+${t.appeal} appeal`);
+        if (t.capacity) bits.push(`fits ${biggestSize(t.capacity)} games`);
+        return `<button class="opt ${d.parts[cat] === i ? "on" : ""}" data-act="part" data-arg="${cat}:${i}" aria-pressed="${d.parts[cat] === i}">
+          <b>${t.name}</b><small>${bits.join(" · ")}</small><span class="num">$${t.unit_cost}</span></button>`;
+      }).join("");
+      const locked = s.nextTier(cat);
+      return `<fieldset><legend>${cat}</legend>${opts}${locked ? `<p class="hint">Next: ${locked.name} (research)</p>` : ""}</fieldset>`;
+    }).join("");
+    const afford = cost <= s.money;
+    return screen("Design a console", `
+      <p class="hint">Pick a part for each slot. CPU, GPU and memory set power; the rest add appeal. Today's buyers expect about ${Math.round(s.expectedPower())} power.</p>
+      ${cats}
+      <section class="card spec">
+        <h2>Spec sheet</h2>
+        <dl>
+          <dt>Power</dt><dd>${power(proto)} <small>(${pct(s.tech(proto))} of today, ~${pct(s.tech(proto, s.month + months))} at launch)</small></dd>
+          <dt>Appeal</dt><dd>${appeal(proto)}</dd>
+          <dt>Largest game</dt><dd>${biggestSize(capacity(proto))}</dd>
+          <dt>Build cost</dt><dd>~$${s.unitCost(proto)} per unit</dd>
+          <dt>Development</dt><dd>${fmtMoney(cost)} · ${months} months</dd>
+          <dt>Fair price</dt><dd>about $${fair} <small>(you keep 75%)</small></dd>
+        </dl>
+        <label for="cname">Console name</label>
+        <input id="cname" maxlength="24" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(d.name || "")}" data-bind="name">
+        <label for="cprice">Launch price ($)</label>
+        <input id="cprice" type="number" inputmode="numeric" min="1" value="${price}" data-bind="price" data-num="1">
+        <button class="btn primary wide" data-act="build" ${afford ? "" : "disabled"}>${afford ? `Build it for ${fmtMoney(cost)}` : `Need ${fmtMoney(cost)}`}</button>
+      </section>`);
+  };
+
+  // ---------- make a game
+  views.game = () => {
+    const d = draft;
+    if (!d.focus) d.focus = { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 };
+    const plats = s.platformsForGames();
+    if (!plats.length) return screen("Make a game", `<div class="empty"><p>There are no consoles to make games for.</p></div>`);
+    if (d.platform && !plats.some((c) => c.name === d.platform)) d.platform = null;
+    const plat = d.platform ? s.console(d.platform) : null;
+
+    const platOpts = plats.map((c) => {
+      const mine = isPlayer(c);
+      const where = c.status === "dev" ? "in development" : `${fmtNum(c.installed_base)} owners`;
+      return `<button class="opt ${d.platform === c.name ? "on" : ""}" data-act="pick" data-arg="platform:${esc(c.name)}">
+        <b>${esc(c.name)}</b><small>${mine ? "Yours" : esc(c.owner)} · ${where} · up to ${biggestSize(capacity(c))}</small>
+        <span class="num">keep ${pct(mine ? OWN_GAME_SHARE : LICENSED_GAME_SHARE)}</span></button>`;
+    }).join("");
+
+    const sizeOpts = SIZE_NAMES.map((name) => {
+      const sp = D.GAME_SIZES[name];
+      const why = [];
+      if (plat && sp.capacity > capacity(plat)) why.push("won't fit");
+      if (sp.staff > s.freeStaff) why.push(`needs ${sp.staff} staff`);
+      if (sp.cost > s.money) why.push("too expensive");
+      return `<button class="opt ${d.size === name ? "on" : ""}" data-act="pick" data-arg="size:${name}" ${why.length ? "disabled" : ""}>
+        <b>${name}</b><small>${sp.months} months · ${sp.staff} staff · sells at $${sp.price}${why.length ? ` · ${why.join(", ")}` : ""}</small>
+        <span class="num">${fmtMoney(sp.cost)}</span></button>`;
+    }).join("");
+
+    const chips = (key, list) => `<div class="chips">${list.map((x) =>
+      `<button class="chip ${d[key] === x ? "on" : ""}" data-act="pick" data-arg="${key}:${x}" aria-pressed="${d[key] === x}">${x}</button>`).join("")}</div>`;
+
+    const used = D.FOCUS_AREAS.reduce((t, a) => t + d.focus[a], 0);
+    const left = D.FOCUS_POINTS - used;
+    const focus = D.FOCUS_AREAS.map((a) => `
+      <div class="stepper">
+        <span>${a}</span>
+        <button class="step" data-act="focus" data-arg="${a}:-1" aria-label="Less ${a}" ${d.focus[a] <= 0 ? "disabled" : ""}>&minus;</button>
+        <output>${d.focus[a]}</output>
+        <button class="step" data-act="focus" data-arg="${a}:1" aria-label="More ${a}" ${left <= 0 ? "disabled" : ""}>+</button>
+        <span class="pips">${"■".repeat(d.focus[a])}</span>
+      </div>`).join("");
+
+    // What you've learned so far about this genre and topic.
+    let lessons = "";
+    if (d.genre || d.topic) {
+      const past = s.games.filter((g) => g.status === "released" && (g.genre === d.genre || g.topic === d.topic))
+        .sort((a, b) => b.release_month - a.release_month).slice(0, 3);
+      if (past.length) {
+        lessons = `<div class="lessons"><h3>Your notes</h3>${past.map((g) => `<p><b>${esc(g.title)}</b> (${g.topic} ${g.genre}, ${D.FOCUS_AREAS.map((a) => g.focus[a]).join("/")}) scored ${g.score.toFixed(1)}. ${g.feedback.map(esc).join(" ")}</p>`).join("")}</div>`;
+      }
+    }
+
+    const ready = d.platform && d.size && d.genre && d.topic && left === 0 && (d.title || "").trim();
+    return screen("Make a game", `
+      <fieldset><legend>Platform</legend>${platOpts}</fieldset>
+      <fieldset><legend>Size</legend>${sizeOpts}</fieldset>
+      <fieldset><legend>Genre</legend>${chips("genre", Object.keys(D.GENRES).sort())}</fieldset>
+      <fieldset><legend>Topic</legend>${chips("topic", Object.keys(D.TOPICS).sort())}</fieldset>
+      <fieldset><legend>Focus <span class="legend-note">${left === 0 ? "all 10 points used" : `${left} point${left === 1 ? "" : "s"} left`}</span></legend>
+        <p class="hint">Each genre has a hidden ideal split. Reviews tell you how close you got.</p>
+        ${focus}
+        ${lessons}
+      </fieldset>
+      <section class="card">
+        <label for="gtitle">Title</label>
+        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
+        <button class="btn primary wide" data-act="startgame" ${ready ? "" : "disabled"}>Start development</button>
+        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Pick a platform, size, genre and topic, use all 10 focus points, and give it a title.</p>
+      </section>`);
+  };
+
+  // ---------- your consoles
+  views.consoles = () => {
+    const mine = s.playerConsoles();
+    if (!mine.length) return screen("Your consoles", `<div class="empty"><p>You haven't designed a console yet.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
+    const cards = mine.slice().reverse().map((c) => {
+      const parts = D.CATEGORIES.map((cat) => part(c, cat).name).join(" · ");
+      if (c.status === "dev") return `<section class="card">${consoleSummary(c)}<p class="hint">${parts}</p></section>`;
+      const own = s.games.filter((g) => g.platform === c.name && g.status === "released").length;
+      const key = `retire:${c.name}`;
+      return `<section class="card">
+        ${consoleSummary(c)}
+        <p class="hint">${parts}</p>
+        <dl>
+          <dt>Build cost</dt><dd>$${s.unitCost(c)} / unit</dd>
+          <dt>Fair price</dt><dd>$${s.fairPrice(c)}</dd>
+          <dt>Revenue</dt><dd>${fmtMoney(c.revenue)}</dd>
+          <dt>Profit</dt><dd class="${c.profit < 0 ? "neg" : ""}">${fmtMoney(c.profit)}</dd>
+          <dt>Games</dt><dd>${own} yours · ${c.third_party_titles} third-party</dd>
+          ${c.hype_months ? `<dt>Ads</dt><dd>${c.hype_months} months left</dd>` : ""}
+        </dl>
+        ${c.status === "active" ? `
+        <div class="inline">
+          <label for="p-${esc(c.name)}" class="sr">Price</label>
+          <input id="p-${esc(c.name)}" type="number" inputmode="numeric" min="1" value="${c.price}" data-price-for="${esc(c.name)}">
+          <button class="btn" data-act="setprice" data-arg="${esc(c.name)}">Set price</button>
+        </div>
+        <div class="split">
+          <button class="btn" data-act="ads" data-arg="${esc(c.name)}">Ad campaign · ${fmtMoney(s.marketingCost())}</button>
+          <button class="btn danger" data-act="retire" data-arg="${esc(c.name)}">${confirmKey === key ? "Tap again to discontinue" : "Discontinue"}</button>
+        </div>` : ""}
+      </section>`;
+    }).join("");
+    return screen("Your consoles", cards);
+  };
+
+  // ---------- your games
+  views.games = () => {
+    if (!s.games.length) return screen("Your games", `<div class="empty"><p>No games yet.</p><button class="btn primary" data-act="go" data-arg="game">Make a game</button></div>`);
+    const list = s.games.slice().sort((a, b) => (a.status === "dev" ? -1 : 0) - (b.status === "dev" ? -1 : 0) || b.release_month - a.release_month);
+    return screen("Your games", list.map((g) => {
+      if (g.status === "dev") {
+        return `<div class="row"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${g.months_left} mo left</span></div><span class="pill">in dev</span></div>`;
+      }
+      const cls = g.score >= 8 ? "good" : g.score >= 6 ? "mid" : "bad";
+      return `<details class="row game">
+        <summary><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
+        <span class="score ${cls}">${g.score.toFixed(1)}</span></summary>
+        <div class="detail">
+          <p>Reviews ${g.reviews.join(" / ")} · Revenue ${fmtMoney(g.revenue)}</p>
+          <p>Focus: ${D.FOCUS_AREAS.map((a) => `${a} ${g.focus[a]}`).join(", ")}</p>
+          <ul>${g.feedback.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+        </div>
+      </details>`;
+    }).join(""));
+  };
+
+  // ---------- research
+  views.research = () => {
+    const cards = D.CATEGORIES.map((cat) => {
+      const have = D.COMPONENTS[cat][s.unlocked[cat]].name;
+      const t = s.nextTier(cat);
+      let action = `<span class="pill good">Maxed out</span>`;
+      let sub = "Fully researched";
+      if (t) {
+        const early = s.year < t.year;
+        const short = s.rp < t.rp;
+        sub = `Next: ${t.name} · ${t.rp} RP${early ? ` · from ${t.year}` : ""}`;
+        action = `<button class="btn ${!early && !short ? "primary" : ""}" data-act="research" data-arg="${cat}" ${early || short ? "disabled" : ""}>${early ? `${t.year}` : short ? `${Math.floor(s.rp)}/${t.rp}` : "Research"}</button>`;
+      }
+      return `<div class="row"><div class="row-main"><b>${cat}: ${have}</b><span class="sub">${sub}</span></div>${action}</div>`;
+    }).join("");
+    return screen("Research lab", `<p class="hint">You have ${Math.floor(s.rp)} research points and earn ${s.rpPerMonth.toFixed(1)} a month. More staff and more skill research faster.</p>${cards}`);
+  };
+
+  // ---------- staff & office
+  views.staff = () => {
+    const [oname, cap, rent] = s.officeInfo;
+    const next = D.OFFICES[s.office + 1];
+    return screen("Staff & office", `
+      <section class="card">
+        <dl>
+          <dt>Office</dt><dd>${oname} · room for ${cap} · rent ${fmtMoney(rent)}/mo</dd>
+          <dt>Staff</dt><dd>${s.staff} (${s.freeStaff} free) · ${fmtMoney(s.salary)}/mo each</dd>
+          <dt>Team skill</dt><dd>${s.skill.toFixed(1)} / 10 <small>(grows as you ship games)</small></dd>
+        </dl>
+        <p class="hint">Recruiting costs ${fmtMoney(s.hireCost())} per person. New hires are a little less experienced.</p>
+        <div class="split">
+          <button class="btn primary" data-act="hire" data-arg="1">Hire 1</button>
+          <button class="btn" data-act="hire" data-arg="5">Hire 5</button>
+          <button class="btn" data-act="fire" data-arg="1">Let 1 go</button>
+        </div>
+      </section>
+      ${next ? `<section class="card">
+        <h2>Move to a ${next[0]}</h2>
+        <p>Room for ${next[1]} staff · rent ${fmtMoney(next[2])}/mo · costs ${fmtMoney(next[3])} to move.</p>
+        <button class="btn wide" data-act="office" ${s.money < next[3] ? "disabled" : ""}>${s.money < next[3] ? `Need ${fmtMoney(next[3])}` : "Move offices"}</button>
+      </section>` : `<p class="hint">You're in the biggest office there is.</p>`}`);
+  };
+
+  // ---------- market
+  views.market = () => {
+    const shares = s.marketShares();
+    const rows = s.activeConsoles().sort((a, b) => (shares[b.name] || 0) - (shares[a.name] || 0)).map((c) => `
+      <tr class="${isPlayer(c) ? "you" : ""}"><td><b>${esc(c.name)}</b><small>${isPlayer(c) ? "You" : esc(c.owner)}</small></td>
+      <td>${pct(s.tech(c))}</td><td>$${c.price}</td><td>${fmtNum(c.last_sales)}</td><td>${pct(shares[c.name])}</td><td>${fmtNum(c.installed_base)}</td></tr>`).join("");
+    return screen("Market report", `
+      <p class="hint">About ${fmtNum(s.marketSize())} people shop for a console each month; most leave without buying. Buyers expect about ${Math.round(s.expectedPower())} power today.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Console</th><th>Power</th><th>Price</th><th>Last mo</th><th>Share</th><th>Owners</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`);
+  };
+
+  // ---------- saves & help
+  const HELP = `
+    <ul class="rules">
+      <li><b>Design a console</b> from parts. More power and appeal sell more units but cost more to build. Price it near what buyers think is fair.</li>
+      <li><b>Consoles take months to build.</b> You can start a game for it while it's in development; the game ships when the console launches.</li>
+      <li><b>Make games</b> for your own console (you keep 70%) or license them for a rival's (you keep 45%). That's handy before your hardware exists.</li>
+      <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
+      <li><b>Great games sell your console.</b> Popular consoles also attract third-party games that pay you royalties.</li>
+      <li><b>Hardware ages fast.</b> Research new parts and launch successors.</li>
+      <li><b>Hire staff</b> to make bigger games and research faster. Move offices to grow.</li>
+      <li><b>Three months in a row in debt</b> and the company goes bankrupt. Reach ${D.END_YEAR} for your final score.</li>
+    </ul>`;
+
+  views.help = () => (s ? screen("How to play", HELP) : `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>How to play</h1></div>${HELP}</main>`);
+
+  views.saves = () => {
+    const exportBox = s ? `
+      <section class="card">
+        <h2>Export save</h2>
+        <p class="hint">Your game saves itself on this device after every move. To move it to another device or to the Python version, copy this code into a file named <code>something.json</code> in the <code>saves</code> folder.</p>
+        <textarea id="exporttext" readonly rows="4">${esc(JSON.stringify(s))}</textarea>
+        <button class="btn wide" data-act="copy">Copy save code</button>
+      </section>` : "";
+    const restartKey = "restart";
+    const body = `
+      ${exportBox}
+      <section class="card">
+        <h2>Import save</h2>
+        <p class="hint">Paste a save code from another device or a Python save file.</p>
+        <textarea id="importtext" rows="4" placeholder='{"company": ...}' data-bind="importText">${esc(draft.importText || "")}</textarea>
+        <button class="btn wide" data-act="import">Load this save</button>
+      </section>
+      ${s ? `<section class="card"><h2>Start over</h2><p class="hint">Ends this company and deletes its save on this device.</p>
+        <button class="btn danger wide" data-act="restart">${confirmKey === restartKey ? "Tap again to delete and start over" : "Start a new company"}</button></section>` : ""}
+      ${s ? `<section><h2>How to play</h2>${HELP}</section>` : ""}`;
+    if (s) return screen("Save & help", body);
+    return `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>Import a save</h1></div>${flashBox()}${body}</main>`;
+  };
+
+  views.over = () => {
+    const mine = s.playerConsoles();
+    const released = s.games.filter((g) => g.status === "released");
+    const bestC = mine.length ? mine.reduce((a, b) => (b.installed_base > a.installed_base ? b : a)) : null;
+    const bestG = released.length ? released.reduce((a, b) => (b.score > a.score || (b.score === a.score && b.units_sold > a.units_sold) ? b : a)) : null;
+    return `${topbar()}
+      <main class="screen over">
+        <div class="title-card">
+          <p class="eyebrow">${s.over_reason === "bankrupt" ? "Bankrupt" : "Retired"} · ${s.date}</p>
+          <h1 class="big-title">${s.over_reason === "bankrupt" ? "Game over" : "The end"}</h1>
+          <p class="final">Score <b>${s.finalScore().toLocaleString("en-US")}</b></p>
+        </div>
+        <section class="card"><dl>
+          <dt>Bank balance</dt><dd>${fmtMoney(s.money)}</dd>
+          <dt>Consoles sold</dt><dd>${fmtNum(mine.reduce((t, c) => t + c.installed_base, 0))}</dd>
+          <dt>Games released</dt><dd>${released.length} · ${fmtNum(released.reduce((t, g) => t + g.units_sold, 0))} copies</dd>
+          ${bestC ? `<dt>Best console</dt><dd>${esc(bestC.name)} (${fmtNum(bestC.installed_base)})</dd>` : ""}
+          ${bestG ? `<dt>Best game</dt><dd>${esc(bestG.title)} (${bestG.score.toFixed(1)})</dd>` : ""}
+        </dl></section>
+        <section class="card"><h2>Final news</h2><ul class="news">${s.news.slice(-6).reverse().map(newsLine).join("")}</ul></section>
+        <button class="btn primary wide" data-act="newafterend">Start a new company</button>
+      </main>`;
+  };
+
+  // ------------------------------------------------------------ actions
+  const actions = {
+    go: (v) => go(v),
+    continue: () => {
+      try { s = State.fromDict(JSON.parse(load(SAVE_KEY))); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
+      report = null;
+      go(s.over ? "over" : "home");
+    },
+    advance: (n) => {
+      const from = s.date;
+      const before = s.money;
+      let lines = [];
+      const count = Number(n);
+      let done = 0;
+      for (let i = 0; i < count && !s.over; i++) {
+        lines = lines.concat(s.advance());
+        done++;
+        // Stop a long skip early when something important happens.
+        if (count > 1 && s.debt_months > 0) break;
+      }
+      report = { months: done, from: nextDate(from), delta: s.money - before, lines };
+      autosave();
+      go(s.over ? "over" : "home");
+    },
+    part: (arg) => {
+      const [cat, i] = arg.split(":");
+      designDraft().parts[cat] = Number(i);
+      render();
+    },
+    build: () => {
+      const d = designDraft();
+      const proto = s.previewConsole(d.parts);
+      const price = d.priceTouched ? Number(d.price) : s.fairPrice(proto);
+      const name = (d.name || "").trim();
+      if (attempt(() => s.designConsole(name, d.parts, price), `Engineers are building the ${name}. It launches in ${s.consoleDevMonths(d.parts)} months.`)) go("home");
+      else render();
+    },
+    pick: (arg) => {
+      const i = arg.indexOf(":");
+      const key = arg.slice(0, i);
+      const val = arg.slice(i + 1);
+      draft[key] = val;
+      if (key === "platform" && draft.size) {
+        const plat = s.console(val);
+        if (D.GAME_SIZES[draft.size].capacity > capacity(plat)) draft.size = null;
+      }
+      render();
+    },
+    focus: (arg) => {
+      const [area, delta] = arg.split(":");
+      const used = D.FOCUS_AREAS.reduce((t, a) => t + draft.focus[a], 0);
+      const v = draft.focus[area] + Number(delta);
+      if (v >= 0 && used + Number(delta) <= D.FOCUS_POINTS) draft.focus[area] = v;
+      render();
+    },
+    startgame: () => {
+      const d = draft;
+      if (attempt(() => s.startGame(d.title, d.genre, d.topic, d.size, d.platform, d.focus), `Development started on ${d.title.trim()}.`)) go("home");
+      else render();
+    },
+    setprice: (name) => {
+      const input = document.querySelector(`[data-price-for="${CSS.escape(name)}"]`);
+      attempt(() => s.setPrice(name, Number(input.value)), `${name} now sells for $${Math.round(Number(input.value))}.`);
+      render();
+    },
+    ads: (name) => { attempt(() => s.runMarketing(name), `Ads for the ${name} run for 3 months.`); render(); },
+    retire: (name) => {
+      const key = `retire:${name}`;
+      if (confirmKey !== key) { confirmKey = key; return render(); }
+      confirmKey = null;
+      attempt(() => s.discontinue(name), `${name} discontinued.`);
+      render();
+    },
+    research: (cat) => {
+      let tier = null;
+      attempt(() => { tier = s.research(cat); }, null);
+      if (tier) flash = { kind: "ok", text: `Unlocked ${tier.name}!` };
+      render();
+    },
+    hire: (n) => { attempt(() => s.hire(Number(n)), `Hired ${n}.`); render(); },
+    fire: (n) => { attempt(() => s.fire(Number(n)), `Let ${n} go.`); render(); },
+    office: () => { attempt(() => s.upgradeOffice(), "Moved offices!"); render(); },
+    copy: () => {
+      const box = document.getElementById("exporttext");
+      const text = box.value;
+      const fallback = () => { box.focus(); box.select(); flash = { kind: "ok", text: "Selected. Use your phone's Copy." }; render(); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => { flash = { kind: "ok", text: "Save code copied." }; render(); }, fallback);
+      } else fallback();
+    },
+    import: () => {
+      try {
+        const loaded = State.fromDict(JSON.parse(draft.importText || ""));
+        s = loaded;
+        report = null;
+        autosave();
+        flash = { kind: "ok", text: `Loaded ${s.company}.` };
+        go(s.over ? "over" : "home");
+      } catch (e) {
+        flash = { kind: "err", text: "That doesn't look like a Console Tycoon save. Paste the whole code, including the { and }." };
+        render();
+      }
+    },
+    restart: () => {
+      if (confirmKey !== "restart") { confirmKey = "restart"; return render(); }
+      s = null;
+      report = null;
+      store(SAVE_KEY, null);
+      go("start");
+    },
+    newafterend: () => { s = null; report = null; store(SAVE_KEY, null); go("start"); },
+  };
+
+  function nextDate(dateStr) {
+    // "Jan 1987" -> the month after it, used to label multi-month reports.
+    const [m, y] = dateStr.split(" ");
+    let i = D.MONTH_NAMES.indexOf(m) + 1;
+    let year = Number(y);
+    if (i === 12) { i = 0; year++; }
+    return `${D.MONTH_NAMES[i]} ${year}`;
+  }
+
+  // ------------------------------------------------------------ wiring
+  function render() {
+    const fn = views[view] || views.start;
+    app.innerHTML = fn();
+  }
+
+  app.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-act]");
+    if (!el || el.disabled) return;
+    e.preventDefault();
+    const act = actions[el.dataset.act];
+    if (act) act(el.dataset.arg);
+  });
+
+  app.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!el.dataset || !el.dataset.bind) return;
+    draft[el.dataset.bind] = el.value;
+    if (el.dataset.bind === "price") draft.priceTouched = true;
+    if (view === "game" && el.dataset.bind === "title") {
+      // Enable the start button without re-rendering (keeps the keyboard open).
+      const btn = app.querySelector('[data-act="startgame"]');
+      const d = draft;
+      const left = D.FOCUS_POINTS - D.FOCUS_AREAS.reduce((t, a) => t + d.focus[a], 0);
+      const ok = Boolean(d.platform && d.size && d.genre && d.topic && left === 0 && el.value.trim());
+      if (btn) btn.disabled = !ok;
+      const hint = document.getElementById("gamehint");
+      if (hint) hint.hidden = ok;
+    }
+  });
+
+  app.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (e.target.dataset.form === "new") {
+      const name = (draft.company || "").trim() || "Garage Games";
+      s = createGame(name);
+      report = null;
+      autosave();
+      go("home");
+    }
+  });
+
+  // Keep the game across live updates of the page.
+  function start(data) {
+    if (data && data.save) {
+      try { s = State.fromDict(data.save); view = data.view || "home"; draft = data.draft || {}; } catch (e) { s = null; }
+    }
+    if (!s) view = "start";
+    render();
+  }
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ save: s ? s.toDict() : null, view, draft }));
+  if (hot && hot.ready) hot.ready(start); else start(hot && hot.data ? hot.data : {});
+})();
+
+</script>
+
+</body>
+</html>

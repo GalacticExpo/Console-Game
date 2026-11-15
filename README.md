@@ -14,6 +14,18 @@ python3 -m console_tycoon
 
 Saves go to `saves/` in the current directory. Quitting with `q` saves automatically.
 
+### On your phone
+
+`web/index.html` is the same game as a touch-friendly web page: tap buttons instead of typing, no install, and it saves on your device after every move. Open it in your phone's browser (for example from a GitHub Pages site for this repo, or by copying the file to your phone).
+
+Use **Save & help → Export save** to copy a save code. Saves use the same format as the terminal version, so a save made on your phone can go into `saves/` on your computer, and the other way around.
+
+The web version is a JavaScript port of `sim.py` (`web/sim.js`). Game data is generated from `data.py`. After changing either, rebuild the page with:
+
+```bash
+python3 tools/build_web.py
+```
+
 ## How it works
 
 **Consoles**
@@ -41,5 +53,8 @@ Saves go to `saves/` in the current directory. Quitting with `q` saves automatic
 | `console_tycoon/sim.py` | The simulation (no I/O); deterministic per seed |
 | `console_tycoon/ui.py` | Menus and screens |
 | `tests/test_sim.py` | Unit tests plus a scripted UI playthrough |
+| `web/sim.js`, `web/ui.js`, `web/style.css` | Phone/browser version |
+| `tools/build_web.py` | Builds `web/index.html` and `web/data.json` |
+| `tests/web_sim.test.js` | Tests for the browser version's simulation |
 
-Run the tests with `python3 -m unittest discover -s tests`.
+Run the tests with `python3 -m unittest discover -s tests` and `node --test tests/web_sim.test.js`.

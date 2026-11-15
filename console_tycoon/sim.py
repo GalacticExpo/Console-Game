@@ -341,19 +341,20 @@ class State:
         """What the critics said: hints about the hidden quality rules."""
         notes = []
         ideal = GENRES[g.genre]
+        a_genre = ("an " if g.genre[0] in "AEIOU" else "a ") + g.genre
         diffs = {a: g.focus[a] - ideal[a] for a in data.FOCUS_AREAS}
         worst = max(diffs, key=lambda a: abs(diffs[a]))
         if abs(diffs[worst]) <= 1 and all(abs(d) <= 1 for d in diffs.values()):
-            notes.append(f"Critics felt the focus was just right for a {g.genre} game.")
+            notes.append(f"Critics felt the focus was just right for {a_genre} game.")
         elif diffs[worst] < 0:
-            notes.append(f"Critics wanted more {worst} from a {g.genre} game.")
+            notes.append(f"Critics wanted more {worst} from {a_genre} game.")
         else:
-            notes.append(f"Critics thought too much effort went into {worst} for a {g.genre} game.")
+            notes.append(f"Critics thought too much effort went into {worst} for {a_genre} game.")
         rating = self.combo_rating(g.genre, g.topic)
         if rating == "great":
             notes.append(f"{g.topic} and {g.genre} are a fantastic match!")
         elif rating == "poor":
-            notes.append(f"Players found {g.topic} a strange theme for a {g.genre} game.")
+            notes.append(f"Players found {g.topic} a strange theme for {a_genre} game.")
         if tech_factor < 0.7 and g.focus["Graphics"] >= 3:
             notes.append("The aging hardware held the graphics back.")
         return notes
