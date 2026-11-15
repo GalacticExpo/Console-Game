@@ -51,11 +51,13 @@
       units_sold: 0, revenue: 0, last_sales: 0 }, f);
   }
 
-  const FIELDS = ["version", "company", "seed", "money", "month", "consoles", "games", "news"];
+  const FIELDS = ["version", "company", "seed", "money", "month", "unlocked", "consoles", "games", "news"];
 
   class State {
     constructor(f) {
       Object.assign(this, { version: 2, company: "", seed: 1, money: D.STARTING_MONEY, month: 0,
+        // Best tier unlocked in each part slot. Everything starts at the earliest type.
+        unlocked: Object.fromEntries(SLOTS.map((s) => [s, 0])),
         consoles: [], games: [], news: [] }, f || {});
       this.consoles = this.consoles.map(newConsole);
       this.games = this.games.map(newGame);
@@ -89,6 +91,7 @@
       if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
       for (const s of SLOTS) {
         if (!(parts[s] >= 0 && parts[s] < D.COMPONENTS[s].length)) throw new GameError(`Pick a ${s}.`);
+        if (parts[s] > this.unlocked[s]) throw new GameError(`The ${D.COMPONENTS[s][parts[s]].name} is locked.`);
       }
       if (!(price > 0)) throw new GameError("Price must be more than $0.");
       if (this.consoleInDev()) throw new GameError("Your hardware team is already building a console.");

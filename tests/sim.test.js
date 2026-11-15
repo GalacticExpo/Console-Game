@@ -19,12 +19,24 @@ test("designing a console costs money and it launches after its build time", () 
   assert.ok(s.money > D.STARTING_MONEY - CT.devCost(parts(0)));
 });
 
-test("every part is available from the start", () => {
+test("hardware is locked to the earliest parts", () => {
   const s = CT.createGame("T", 1);
   s.money = 1e7;
+  for (const slot of CT.SLOTS) {
+    assert.strictEqual(s.unlocked[slot], 0);
+    assert.throws(() => s.designConsole("Too Good", { ...parts(0), [slot]: 1 }, 200), GameError);
+  }
+  s.unlocked = { ...parts(6) };
   const c = s.designConsole("Monster", parts(6), 999);
   assert.strictEqual(CT.power(c), 21);
   assert.strictEqual(CT.appeal(c), 21);
+});
+
+test("saves without unlock data still load, locked to the earliest parts", () => {
+  const s = CT.createGame("T", 1);
+  const d = s.toDict();
+  delete d.unlocked;
+  assert.deepStrictEqual(CT.State.fromDict(JSON.parse(JSON.stringify(d))).unlocked, parts(0));
 });
 
 test("a game started during console development ships at launch", () => {
@@ -74,6 +86,7 @@ test("console power helps graphics-heavy games", () => {
     for (const [tier, add] of [[0, (x) => { weak += x; }], [6, (x) => { strong += x; }]]) {
       const s = CT.createGame("T", seed);
       s.money = 1e7;
+      s.unlocked = { ...parts(6) };
       s.designConsole("Box", { ...parts(tier), Storage: 0 }, 300);
       for (let i = 0; i < 6; i++) s.advance();
       const g = s.startGame("G", "Shooter", "Space", "Small", "Box", shooter);

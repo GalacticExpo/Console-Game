@@ -214,15 +214,18 @@
     const price = draft.priceTouched ? draft.price : fair;
     const slots = SLOTS.map((slot) => {
       const kind = D.POWER_SLOTS.includes(slot) ? "power" : "appeal";
-      const opts = D.COMPONENTS[slot].map((t, i) => `
-        <button class="opt ${draft.parts[slot] === i ? "on" : ""}" data-act="part" data-arg="${slot}:${i}" aria-pressed="${draft.parts[slot] === i}">
+      const opts = D.COMPONENTS[slot].map((t, i) => {
+        const locked = i > s.unlocked[slot];
+        return `
+        <button class="opt ${draft.parts[slot] === i ? "on" : ""} ${locked ? "locked" : ""}" data-act="part" data-arg="${slot}:${i}" aria-pressed="${draft.parts[slot] === i}" ${locked ? "disabled" : ""}>
           <b>${t.name}</b><small>+${t.rating} ${kind}${t.capacity ? ` · fits ${biggestSize(t.capacity)} games` : ""}</small>
-          <span class="num">$${t.unit_cost}</span></button>`).join("");
+          <span class="num">${locked ? "Locked" : `$${t.unit_cost}`}</span></button>`;
+      }).join("");
       return `<fieldset><legend>${slot}</legend>${opts}</fieldset>`;
     }).join("");
     const afford = cost <= s.money;
     return screen("Design a console", `
-      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. Better parts cost more per console.</p>
+      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
       ${slots}
       <section class="card spec">
         <h2>Spec sheet</h2>
@@ -366,7 +369,7 @@
   // ---------- saves & help
   const HELP = `
     <ul class="rules">
-      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits.</li>
+      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
       <li><b>Price it</b> near what buyers think is fair. Cheaper sells more units, but you make less on each one.</li>
       <li><b>Make games</b> for your consoles. You can start one while the console is being built; it ships at launch.</li>
       <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
