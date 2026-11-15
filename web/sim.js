@@ -42,7 +42,7 @@
   const withArticle = (w) => (/^[AEIOU]/.test(w) ? `an ${w}` : `a ${w}`);
 
   function newConsole(f) {
-    return Object.assign({ name: "", parts: {}, price: 0, status: "dev", dev_months_left: 0,
+    return Object.assign({ name: "", parts: {}, price: 0, color: D.CONSOLE_COLORS[0][1], status: "dev", dev_months_left: 0,
       launch_month: -1, installed_base: 0, revenue: 0, profit: 0, last_sales: 0 }, f);
   }
   function newGame(f) {
@@ -85,7 +85,7 @@
     }
 
     // ---------------------------------------------------------- consoles
-    designConsole(name, parts, price) {
+    designConsole(name, parts, price, color) {
       name = (name || "").trim();
       if (!name) throw new GameError("Your console needs a name.");
       if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
@@ -97,7 +97,8 @@
       if (this.consoleInDev()) throw new GameError("Your hardware team is already building a console.");
       const cost = devCost(parts);
       this.spend(cost);
-      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price), dev_months_left: devMonths(parts) });
+      if (!D.CONSOLE_COLORS.some(([, hex]) => hex === color)) color = D.CONSOLE_COLORS[0][1];
+      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price), color, dev_months_left: devMonths(parts) });
       this.consoles.push(c);
       this.say(`Hardware team began building the ${name} (${fmtMoney(cost)}).`);
       return c;

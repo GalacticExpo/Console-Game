@@ -1,11 +1,14 @@
-// Console Tycoon touch UI. Renders screens into #app and handles taps.
+// Console Tycoon touch UI. Landscape layout: the left "showroom" shows a model of the
+// console or game being worked on; the right panel holds the controls for making it.
 "use strict";
 
 (function () {
   const { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity, unitCost,
     fairPrice, devCost, devMonths, biggestSize, SLOTS, SIZE_NAMES, RETAIL_SHARE } = window.CT;
+  const { consoleSVG, gameSVG } = window.CT_MODELS;
 
   const SAVE_KEY = "console-tycoon-save-v2";
+  const UPRIGHT_KEY = "console-tycoon-upright";
   const app = document.getElementById("app");
 
   let s = null;          // game State
@@ -14,6 +17,7 @@
   let flash = null;      // {kind, text}
   let report = null;     // result of the last time skip
   let confirmKey = null; // a destructive button waiting for its second tap
+  let resetScroll = true;
 
   // ------------------------------------------------------------ utils
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -25,14 +29,13 @@
     if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
     return `${sign}$${Math.round(a)}`;
   }
+  const colorName = (hex) => (D.CONSOLE_COLORS.find(([, h]) => h === hex) || D.CONSOLE_COLORS[0])[0];
 
-  function store(value) {
-    try { if (value === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, value); } catch (e) { /* storage unavailable */ }
+  function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function storeSet(key, value) {
+    try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
   }
-  function loadSaved() {
-    try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
-  }
-  function autosave() { if (s) store(JSON.stringify(s)); }
+  function autosave() { if (s) storeSet(SAVE_KEY, JSON.stringify(s)); }
 
   function attempt(fn, okText) {
     try {
@@ -47,16 +50,17 @@
     }
   }
 
-  function go(v) {
+  function go(v, keep) {
     view = v;
-    draft = {};
+    draft = keep || {};
     confirmKey = null;
+    resetScroll = true;
     render();
-    window.scrollTo(0, 0);
   }
 
-  // ------------------------------------------------------------ pieces
-  function topbar() {
+  // ------------------------------------------------------------ showroom (left)
+  function lcd() {
+    if (!s) return "";
     const owners = s.consoles.reduce((t, c) => t + c.installed_base, 0);
     const copies = s.games.reduce((t, g) => t + g.units_sold, 0);
     return `
@@ -73,6 +77,70 @@
     </header>`;
   }
 
+  const newestConsole = () => (s && s.consoles.length ? s.consoles[s.consoles.length - 1] : null);
+
+  function consoleModel(c) {
+    return { svg: consoleSVG({ parts: c.parts, color: c.color, name: c.name }),
+      title: c.name,
+      caption: `${power(c)} power · ${appeal(c)} appeal · fits ${biggestSize(capacity(c))} games · ${colorName(c.color)}` };
+  }
+  function gameModel(g) {
+    const plat = g.platform && s.consoles.find((c) => c.name === g.platform);
+    const cart = !plat || capacity(plat) <= 2;
+    const kind = [g.size, g.topic, g.genre].filter(Boolean).join(" ");
+    return { svg: gameSVG(g, cart), title: g.title || "Untitled game",
+      caption: `${kind || "Pick a size, genre and topic"}${g.score ? ` · score ${g.score.toFixed(1)}` : ""}`,
+      focus: g.focus };
+  }
+
+  // What the showroom displays for the current screen.
+  function showcase() {
+    if (view === "design") {
+      return consoleModel({ parts: draft.parts, color: draft.color, name: (draft.name || "").trim() || "Your console" });
+    }
+    if (view === "game" && draft.focus) return gameModel(draft);
+    if (view === "games" && draft.show) {
+      const g = s.games.find((x) => x.title === draft.show);
+      if (g) return gameModel(g);
+    }
+    if (view === "consoles" && draft.show) {
+      const c = s.consoles.find((x) => x.name === draft.show);
+      if (c) return consoleModel(c);
+    }
+    if (!s) return consoleModel({ parts: Object.fromEntries(SLOTS.map((sl) => [sl, 0])), color: "#2c48c4", name: "Your console" });
+    const c = newestConsole();
+    if (c) return consoleModel(c);
+    return null;
+  }
+
+  function modelHTML() {
+    const m = showcase();
+    if (!m) return `<div class="model empty-model"><p>Your first console will be shown here.</p></div>`;
+    const bars = m.focus ? `<div class="focus-bars">${D.FOCUS_AREAS.map((a) =>
+      `<span><i style="width:${m.focus[a] * 10}%"></i><small>${a}</small></span>`).join("")}</div>` : "";
+    return `<div class="model">${m.svg}</div>
+      <div class="caption"><b>${esc(m.title)}</b><small>${esc(m.caption)}</small>${bars}</div>`;
+  }
+
+  function stageControls() {
+    if (!s) return `<div class="stage-title"><p class="eyebrow">A console-making game</p><h1 class="big-title">Console Tycoon</h1></div>`;
+    if (view !== "home") return "";
+    return `<div class="time">
+        <div class="skip">
+          <button class="btn dark" data-act="advance" data-arg="3">+3 mo</button>
+          <button class="btn dark" data-act="advance" data-arg="6">+6 mo</button>
+          <button class="btn dark" data-act="advance" data-arg="12">+1 yr</button>
+        </div>
+        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
+      </div>`;
+  }
+
+  function refreshModel() {
+    const el = document.getElementById("showroom");
+    if (el) el.innerHTML = modelHTML();
+  }
+
+  // ------------------------------------------------------------ panel (right)
   function flashBox() {
     if (!flash) return "";
     const f = flash;
@@ -80,13 +148,9 @@
     return `<div class="flash ${f.kind}" role="status">${esc(f.text)}</div>`;
   }
 
-  function screen(title, body) {
-    return `${topbar()}
-      <main class="screen">
-        <div class="screen-head"><button class="back" data-act="go" data-arg="home">&larr; HQ</button><h1>${title}</h1></div>
-        ${flashBox()}
-        ${body}
-      </main>`;
+  function screen(title, body, backTo = "home") {
+    return `<div class="screen-head"><button class="back" data-act="go" data-arg="${backTo}">&larr; ${backTo === "home" ? "HQ" : "Back"}</button><h1>${title}</h1></div>
+      ${flashBox()}${body}`;
   }
 
   function newsLine(line) {
@@ -110,16 +174,17 @@
 
   const progress = (frac) => `<div class="bar"><i style="width:${Math.max(4, Math.min(100, frac * 100))}%"></i></div>`;
 
-  function consoleRow(c) {
+  function consoleRow(c, tappable) {
+    const attrs = tappable ? `data-act="show" data-arg="${esc(c.name)}" role="button" tabindex="0"` : "";
+    const swatch = `<span class="swatch-dot" style="background:${c.color}"></span>`;
     if (c.status === "dev") {
       const total = devMonths(c.parts);
-      return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+      return `<div class="row ${tappable ? "tap" : ""} ${draft.show === c.name ? "on" : ""}" ${attrs}>${swatch}<div class="row-main"><b>${esc(c.name)}</b>
         <span class="sub">Being built · launches in ${c.dev_months_left} mo</span>${progress((total - c.dev_months_left) / total)}</div></div>`;
     }
     const state = c.status === "active" ? `$${c.price} · ${fmtNum(c.last_sales)} sold last month` : "Discontinued";
-    return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
-      <span class="sub">${state} · ${fmtNum(c.installed_base)} owners</span></div>
-      <span class="pill">${power(c)} pwr · ${appeal(c)} app</span></div>`;
+    return `<div class="row ${tappable ? "tap" : ""} ${draft.show === c.name ? "on" : ""}" ${attrs}>${swatch}<div class="row-main"><b>${esc(c.name)}</b>
+      <span class="sub">${state} · ${fmtNum(c.installed_base)} owners</span></div></div>`;
   }
 
   function gameRow(g) {
@@ -129,22 +194,16 @@
       ${progress((total - g.months_left) / total)}</div></div>`;
   }
 
-  // ------------------------------------------------------------ views
   const views = {};
 
   views.start = () => {
     let savedInfo = "";
-    const saved = loadSaved();
+    const saved = storeGet(SAVE_KEY);
     if (saved) {
       try { const st = State.fromDict(JSON.parse(saved)); savedInfo = `${esc(st.company)} · ${st.date}`; } catch (e) { savedInfo = ""; }
     }
     return `
-    <main class="screen start">
-      <div class="title-card">
-        <p class="eyebrow">A console-making game</p>
-        <h1 class="big-title">Console<br>Tycoon</h1>
-        <p class="lede">You have a garage and ${fmtMoney(D.STARTING_MONEY)}. Design a games console, make games for it, and watch them sell.</p>
-      </div>
+      <p class="lede">You have a garage and ${fmtMoney(D.STARTING_MONEY)}. Design a games console, make games for it, and watch them sell.</p>
       ${flashBox()}
       ${savedInfo ? `<button class="btn primary wide" data-act="continue">Continue <span class="btn-sub">${savedInfo}</span></button>` : ""}
       <form class="card" data-form="new">
@@ -156,8 +215,7 @@
       <div class="split">
         <button class="btn" data-act="go" data-arg="help">How to play</button>
         <button class="btn" data-act="go" data-arg="saves">Import a save</button>
-      </div>
-    </main>`;
+      </div>`;
   };
 
   views.home = () => {
@@ -169,7 +227,7 @@
         <span class="delta ${report.delta < 0 ? "neg" : "pos"}">${signed(report.delta)}</span></div>
         ${report.lines.length ? `<ul class="news">${report.lines.map(newsLine).join("")}</ul>` : `<p class="hint">A quiet month.</p>`}
       </section>` : "";
-    const hw = consoles.length ? consoles.map(consoleRow).join("") + (s.consoleInDev() ? "" : `<button class="btn" data-act="go" data-arg="design">Design another console</button>`)
+    const hw = consoles.length ? consoles.map((c) => consoleRow(c, false)).join("") + (s.consoleInDev() ? "" : `<button class="btn" data-act="go" data-arg="design">Design another console</button>`)
       : `<div class="empty"><p>You don't have a console yet. Design one first; you can start a game for it while it's being built.</p>
          <button class="btn primary" data-act="go" data-arg="design">Design your first console</button></div>`;
     const sw = dev ? gameRow(dev) : s.consoles.length
@@ -178,28 +236,17 @@
     const top = sellers.length ? `<section><h2>Best sellers last month</h2>${sellers.map((g) =>
       `<div class="row"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${esc(g.platform)} · score ${g.score.toFixed(1)}</span></div><span class="num">${fmtNum(g.last_sales)}</span></div>`).join("")}</section>` : "";
     const news = latestNews(8);
-    return `${topbar()}
-      <main class="screen home">
-        ${flashBox()}
-        ${rep}
-        <section><h2>Your consoles</h2>${hw}</section>
-        <section><h2>Your studio</h2>${sw}</section>
-        ${top}
-        <nav class="grid" aria-label="Actions">
-          <button class="tile" data-act="go" data-arg="consoles"><b>Consoles</b><small>${s.consoles.length} designed</small></button>
-          <button class="tile" data-act="go" data-arg="games"><b>Games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
-        </nav>
-        ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
-        <button class="btn quiet" data-act="go" data-arg="saves">Save, load &amp; how to play</button>
-      </main>
-      <footer class="dock">
-        <div class="skip">
-          <button class="btn" data-act="advance" data-arg="3">+3 mo</button>
-          <button class="btn" data-act="advance" data-arg="6">+6 mo</button>
-          <button class="btn" data-act="advance" data-arg="12">+1 yr</button>
-        </div>
-        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
-      </footer>`;
+    return `${flashBox()}
+      ${rep}
+      <section><h2>Your consoles</h2>${hw}</section>
+      <section><h2>Your studio</h2>${sw}</section>
+      ${top}
+      <nav class="grid" aria-label="Actions">
+        <button class="tile" data-act="go" data-arg="consoles"><b>Consoles</b><small>${s.consoles.length} designed</small></button>
+        <button class="tile" data-act="go" data-arg="games"><b>Games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
+      </nav>
+      ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
+      <button class="btn quiet" data-act="go" data-arg="saves">Save, load &amp; how to play</button>`;
   };
 
   // ---------- design a console
@@ -207,11 +254,12 @@
     if (s.consoleInDev()) {
       return screen("Design a console", `<div class="empty"><p>Your hardware team is already building a console. Design the next one after it launches.</p></div>`);
     }
-    if (!draft.parts) draft.parts = Object.fromEntries(SLOTS.map((sl) => [sl, 0]));
     const proto = { parts: draft.parts };
     const cost = devCost(draft.parts);
     const fair = fairPrice(proto);
     const price = draft.priceTouched ? draft.price : fair;
+    const swatches = D.CONSOLE_COLORS.map(([name, hex]) =>
+      `<button class="swatch ${draft.color === hex ? "on" : ""}" style="--sw:${hex}" data-act="color" data-arg="${hex}" aria-label="${name}" aria-pressed="${draft.color === hex}"></button>`).join("");
     const slots = SLOTS.map((slot) => {
       const kind = D.POWER_SLOTS.includes(slot) ? "power" : "appeal";
       const opts = D.COMPONENTS[slot].map((t, i) => {
@@ -225,7 +273,13 @@
     }).join("");
     const afford = cost <= s.money;
     return screen("Design a console", `
-      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
+      <section class="card">
+        <label for="cname">Console name</label>
+        <input id="cname" maxlength="16" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(draft.name || "")}" data-bind="name">
+        <label>Colour <span class="label-note">${colorName(draft.color)}</span></label>
+        <div class="swatches">${swatches}</div>
+      </section>
+      <p class="hint">CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
       ${slots}
       <section class="card spec">
         <h2>Spec sheet</h2>
@@ -237,8 +291,6 @@
           <dt>Development</dt><dd>${fmtMoney(cost)} · ${devMonths(draft.parts)} months</dd>
           <dt>Fair price</dt><dd>about $${fair} <small>(you keep ${Math.round(RETAIL_SHARE * 100)}%, ~$${Math.round(fair * RETAIL_SHARE - unitCost(proto))} profit each)</small></dd>
         </dl>
-        <label for="cname">Console name</label>
-        <input id="cname" maxlength="24" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(draft.name || "")}" data-bind="name">
         <label for="cprice">Price ($)</label>
         <input id="cprice" type="number" inputmode="numeric" min="1" value="${price}" data-bind="price">
         <button class="btn primary wide" data-act="build" ${afford ? "" : "disabled"}>${afford ? `Build it for ${fmtMoney(cost)}` : `Need ${fmtMoney(cost)}`}</button>
@@ -254,11 +306,9 @@
 
   views.game = () => {
     const d = draft;
-    if (!d.focus) d.focus = { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 };
     const plats = s.platforms();
     if (!plats.length) return screen("Make a game", `<div class="empty"><p>Design a console first, then make games for it.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
     if (s.gameInDev()) return screen("Make a game", `<div class="empty"><p>Your studio is busy with ${esc(s.gameInDev().title)}. Start the next game when it ships.</p></div>`);
-    if (!d.platform && plats.length === 1) d.platform = plats[0].name;
     const plat = d.platform ? s.console(d.platform) : null;
     if (d.size && plat && D.GAME_SIZES[d.size].capacity > capacity(plat)) d.size = null;
 
@@ -300,6 +350,10 @@
 
     const ready = gameReady();
     return screen("Make a game", `
+      <section class="card">
+        <label for="gtitle">Title</label>
+        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
+      </section>
       <fieldset><legend>Console</legend>${platOpts}</fieldset>
       <fieldset><legend>Size</legend>${sizeOpts}</fieldset>
       <fieldset><legend>Genre</legend>${chips("genre", Object.keys(D.GENRES).sort())}</fieldset>
@@ -310,10 +364,8 @@
         ${lessons}
       </fieldset>
       <section class="card">
-        <label for="gtitle">Title</label>
-        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
         <button class="btn primary wide" data-act="startgame" ${ready ? "" : "disabled"}>Start development</button>
-        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Pick a console, size, genre and topic, use all 10 focus points, and give it a title.</p>
+        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Give it a title, pick a console, size, genre and topic, and use all 10 focus points.</p>
       </section>`);
   };
 
@@ -322,7 +374,7 @@
     if (!s.consoles.length) return screen("Consoles", `<div class="empty"><p>You haven't designed a console yet.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
     const cards = s.consoles.slice().reverse().map((c) => {
       const parts = SLOTS.map((sl) => part(c, sl).name).join(" · ");
-      const head = `${consoleRow(c)}<p class="hint">${parts}</p>`;
+      const head = `${consoleRow(c, true)}<p class="hint">${parts}</p>`;
       if (c.status === "dev") return `<section class="card">${head}</section>`;
       const own = s.games.filter((g) => g.platform === c.name && g.status === "released").length;
       const key = `retire:${c.name}`;
@@ -343,7 +395,8 @@
         <button class="btn danger" data-act="retire" data-arg="${esc(c.name)}">${confirmKey === key ? "Tap again to discontinue" : "Discontinue"}</button>` : ""}
       </section>`;
     }).join("");
-    return screen("Consoles", (s.consoleInDev() ? "" : `<button class="btn primary wide" data-act="go" data-arg="design">Design a new console</button>`) + cards);
+    return screen("Consoles", `<p class="hint">Tap a console to show it in the showroom.</p>` +
+      (s.consoleInDev() ? "" : `<button class="btn primary wide" data-act="go" data-arg="design">Design a new console</button>`) + cards);
   };
 
   // ---------- games
@@ -352,24 +405,25 @@
     if (!s.games.length) return screen("Games", newBtn || `<div class="empty"><p>Design a console first, then make games for it.</p></div>`);
     const dev = s.gameInDev();
     const released = s.games.filter((g) => g.status === "released").sort((a, b) => b.release_month - a.release_month);
-    return screen("Games", newBtn + (dev ? gameRow(dev) : "") + released.map((g) => {
+    return screen("Games", `<p class="hint">Tap a game to show its box and reviews.</p>` + newBtn + (dev ? gameRow(dev) : "") + released.map((g) => {
       const cls = g.score >= 8 ? "good" : g.score >= 6 ? "mid" : "bad";
-      return `<details class="row game">
-        <summary><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
-        <span class="score ${cls}">${g.score.toFixed(1)}</span></summary>
-        <div class="detail">
+      const open = draft.show === g.title;
+      return `<div class="row game ${open ? "on" : ""}">
+        <button class="game-head" data-act="show" data-arg="${esc(g.title)}" aria-expanded="${open}"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
+        <span class="score ${cls}">${g.score.toFixed(1)}</span></button>
+        ${open ? `<div class="detail">
           <p>Reviews ${g.reviews.join(" / ")} · Revenue ${fmtMoney(g.revenue)}</p>
           <p>Focus: ${D.FOCUS_AREAS.map((a) => `${a} ${g.focus[a]}`).join(", ")}</p>
           <ul>${g.feedback.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
-        </div>
-      </details>`;
+        </div>` : ""}
+      </div>`;
     }).join(""));
   };
 
   // ---------- saves & help
   const HELP = `
     <ul class="rules">
-      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
+      <li><b>Design a console</b> from six parts and paint it. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
       <li><b>Price it</b> near what buyers think is fair. Cheaper sells more units, but you make less on each one.</li>
       <li><b>Make games</b> for your consoles. You can start one while the console is being built; it ships at launch.</li>
       <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
@@ -377,8 +431,7 @@
       <li><b>Console sales fade</b> over time. Design a new one to keep growing.</li>
     </ul>`;
 
-  views.help = () => (s ? screen("How to play", HELP)
-    : `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>How to play</h1></div>${HELP}</main>`);
+  views.help = () => screen("How to play", HELP, s ? "home" : "start");
 
   views.saves = () => {
     const body = `
@@ -397,8 +450,7 @@
       ${s ? `<section class="card"><h2>Start over</h2><p class="hint">Ends this company and deletes its save on this device.</p>
         <button class="btn danger wide" data-act="restart">${confirmKey === "restart" ? "Tap again to delete and start over" : "Start a new company"}</button></section>
         <section><h2>How to play</h2>${HELP}</section>` : ""}`;
-    if (s) return screen("Save &amp; help", body);
-    return `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>Import a save</h1></div>${flashBox()}${body}</main>`;
+    return screen(s ? "Save &amp; help" : "Import a save", body, s ? "home" : "start");
   };
 
   // ------------------------------------------------------------ actions
@@ -409,9 +461,17 @@
   }
 
   const actions = {
-    go: (v) => go(v),
+    go: (v) => {
+      if (v === "design") return go(v, { parts: Object.fromEntries(SLOTS.map((sl) => [sl, 0])), color: D.CONSOLE_COLORS[0][1] });
+      if (v === "game") {
+        const plats = s.platforms();
+        const newest = plats[plats.length - 1];
+        return go(v, { focus: { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 }, platform: newest ? newest.name : null });
+      }
+      return go(v);
+    },
     continue: () => {
-      try { s = State.fromDict(JSON.parse(loadSaved())); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
+      try { s = State.fromDict(JSON.parse(storeGet(SAVE_KEY))); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
       report = null;
       go("home");
     },
@@ -432,11 +492,12 @@
       draft.parts[slot] = Number(i);
       render();
     },
+    color: (hex) => { draft.color = hex; render(); },
     build: () => {
       const proto = { parts: draft.parts };
       const price = draft.priceTouched ? Number(draft.price) : fairPrice(proto);
       const name = (draft.name || "").trim();
-      if (attempt(() => s.designConsole(name, draft.parts, price), `Engineers are building the ${name}. It launches in ${devMonths(draft.parts)} months.`)) go("home");
+      if (attempt(() => s.designConsole(name, draft.parts, price, draft.color), `Engineers are building the ${name}. It launches in ${devMonths(draft.parts)} months.`)) go("home");
       else render();
     },
     pick: (arg) => {
@@ -456,6 +517,7 @@
       if (attempt(() => s.startGame(d.title, d.genre, d.topic, d.size, d.platform, d.focus), `Development started on ${d.title.trim()}.`)) go("home");
       else render();
     },
+    show: (name) => { draft.show = draft.show === name && view === "games" ? null : name; render(); },
     setprice: (name) => {
       const input = document.querySelector(`[data-price-for="${CSS.escape(name)}"]`);
       const price = Number(input.value);
@@ -492,13 +554,36 @@
       if (confirmKey !== "restart") { confirmKey = "restart"; return render(); }
       s = null;
       report = null;
-      store(null);
+      storeSet(SAVE_KEY, null);
       go("start");
     },
+    upright: () => { storeSet(UPRIGHT_KEY, "1"); document.documentElement.classList.add("upright"); },
   };
 
   // ------------------------------------------------------------ wiring
-  function render() { app.innerHTML = (views[view] || views.start)(); }
+  function render() {
+    const old = app.querySelector(".panel");
+    const keep = old && !resetScroll ? old.scrollTop : 0;
+    app.innerHTML = `
+      <div class="layout">
+        <aside class="stage" aria-label="Showroom">
+          ${lcd()}
+          <div class="showroom" id="showroom">${modelHTML()}</div>
+          ${stageControls()}
+        </aside>
+        <main class="panel">${(views[view] || views.start)()}</main>
+      </div>
+      <div class="rotate" role="dialog" aria-label="Turn your phone sideways">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><rect x="38" y="18" width="44" height="78" rx="8" fill="none" stroke="currentColor" stroke-width="5"/>
+          <path d="M 24 70 a 40 40 0 0 1 20 -48" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M 36 14 l 9 8 l -10 6" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h1>Turn your phone sideways</h1>
+        <p>Console Tycoon is made for landscape: the showroom on the left, your workbench on the right.</p>
+        <button class="btn" data-act="upright">Play upright instead</button>
+      </div>`;
+    const panel = app.querySelector(".panel");
+    if (panel) panel.scrollTop = keep;
+    resetScroll = false;
+  }
 
   app.addEventListener("click", (e) => {
     const el = e.target.closest("[data-act]");
@@ -513,8 +598,9 @@
     if (!el.dataset || !el.dataset.bind) return;
     draft[el.dataset.bind] = el.value;
     if (el.dataset.bind === "price") draft.priceTouched = true;
+    // Update the model live without re-rendering the form, so the keyboard stays open.
+    if ((view === "design" && el.dataset.bind === "name") || (view === "game" && el.dataset.bind === "title")) refreshModel();
     if (view === "game" && el.dataset.bind === "title") {
-      // Update the start button without re-rendering, so the keyboard stays open.
       const ok = gameReady();
       const btn = app.querySelector('[data-act="startgame"]');
       const hint = document.getElementById("gamehint");
@@ -533,12 +619,16 @@
     }
   });
 
+  if (storeGet(UPRIGHT_KEY)) document.documentElement.classList.add("upright");
+
   // Keep the game across live updates of the page.
   function start(data) {
     if (data && data.save) {
       try { s = State.fromDict(data.save); view = data.view || "home"; draft = data.draft || {}; } catch (e) { s = null; }
     }
-    if (!s) view = view === "help" || view === "saves" ? view : "start";
+    if (!s) { view = view === "help" || view === "saves" ? view : "start"; }
+    if (view === "design" && !draft.parts) view = "home";
+    if (view === "game" && !draft.focus) view = "home";
     render();
   }
   const hot = window.claude && window.claude.hot;

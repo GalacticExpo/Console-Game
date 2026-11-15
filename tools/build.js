@@ -14,6 +14,7 @@ const fragment = read("shell.html")
   .replace("/*STYLE*/", () => read("style.css"))
   .replace("/*DATA*/", () => scriptSafe(read("data.js")))
   .replace("/*SIM*/", () => scriptSafe(read("sim.js")))
+  .replace("/*MODELS*/", () => scriptSafe(read("models.js")))
   .replace("/*UI*/", () => scriptSafe(read("ui.js")));
 
 const page = `<!doctype html>

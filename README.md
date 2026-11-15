@@ -2,13 +2,15 @@
 
 A phone-friendly game about designing games consoles and making games for them. It runs in any browser; there's nothing to install.
 
+It's made for a phone held sideways: the left half is a showroom with a model of the console or game you're working on, and the right half is the workbench where you make it. Upright phones are asked to rotate, with an option to play upright anyway.
+
 ## Play
 
 Open `index.html` in a browser. On a phone, host it somewhere (for example GitHub Pages for this repo) and open the link. The game saves on the device after every move. **Save & help → Export save** gives you a code to move your game to another device.
 
 ## How it plays
 
-- **Design a console** from six parts. For now every slot is locked to its earliest part. CPU, GPU and memory add *power*; storage, controller and case add *appeal*. Storage also sets the biggest game that fits (cartridges hold Small games, disc drives hold bigger ones). Better parts cost more to develop and to build.
+- **Design a console** from six parts and pick its colour. For now every slot is locked to its earliest part. CPU, GPU and memory add *power*; storage, controller and case add *appeal*. Storage also sets the biggest game that fits (cartridges hold Small games, disc drives hold bigger ones). Better parts cost more to develop and to build.
 - **Set a price.** Buyers compare it with a fair price based on the console's power and appeal. You keep 75% of the price, minus the cost of building each unit.
 - **Make games** for your consoles. Pick a size, genre and topic, then split 10 points between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. Four critics review each game and tell you what to change. Powerful consoles make graphics look better.
 - **Sales:** good games sell more consoles, and more console owners buy more games. Console sales fade over time, so design new ones to keep growing.
@@ -21,6 +23,7 @@ Open `index.html` in a browser. On a phone, host it somewhere (for example GitHu
 | `web/data.js` | Parts, genres, topics and game sizes. Edit this to tweak the game. |
 | `web/sim.js` | The rules: designing, reviewing, sales. No UI code. |
 | `web/ui.js` | Screens and taps |
+| `web/models.js` | Draws the console and game models in the showroom |
 | `web/style.css`, `web/shell.html` | Look and page skeleton |
 | `tools/build.js` | Builds `index.html` from the files in `web/` |
 | `tests/sim.test.js` | Tests for the rules |
