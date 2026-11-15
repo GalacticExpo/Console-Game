@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24262c">
+</head>
+<body>
+<title>Console Tycoon</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: one handheld-width column. A dark "LCD" status strip on top, console-plastic
+   panels below, and a thumb-reach dock at the bottom with the Next month button. */
+:root {
+  --plastic: #e4e1da;      /* page: light console plastic */
+  --panel: #f4f2ed;
+  --ink: #1e2025;
+  --muted: #66645e;
+  --line: #cbc6bb;
+  --accent: #2c48c4;       /* cobalt "A button" */
+  --accent-ink: #ffffff;
+  --led: #c8372a;          /* power-LED red for debt and danger */
+  --good: #287048;
+  --mid: #9a6a0a;
+  --lcd-bg: #24262c;
+  --lcd-fg: #ece9e1;
+  --lcd-dim: #9d9a92;
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
+    --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
+    --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --plastic: #16171b; --panel: #202228; --ink: #e8e5dd; --muted: #a09d95; --line: #353841;
+  --accent: #7f95ff; --accent-ink: #0d1020; --led: #ff6b5d; --good: #5cc28a; --mid: #e0b04a;
+  --lcd-bg: #0c0d10; --lcd-fg: #ece9e1; --lcd-dim: #8e8b84; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--plastic); }
+body {
+  color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--lcd-bg);
+}
+#app { max-width: 600px; margin: 0 auto; }
+button, input, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h2 {
+  font: 600 12px/1.2 var(--font-data); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin-bottom: 8px;
+}
+code { font-family: var(--font-data); font-size: 0.9em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- LCD status strip */
+.lcd {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--lcd-bg); color: var(--lcd-fg);
+  padding-block: 10px 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.lcd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.logo {
+  font: 15px/1.2 var(--font-display); background: none; border: 0; padding: 0; color: var(--lcd-fg);
+  text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.date { font: 600 14px var(--font-data); color: var(--lcd-fg); white-space: nowrap; }
+.lcd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.stat { display: flex; flex-direction: column; min-width: 0; }
+.stat b { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat small { font-size: 10px; color: var(--lcd-dim); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn.quiet { background: none; border: 0; color: var(--muted); font-weight: 500; text-decoration: underline; }
+
+/* ---------- screens */
+.screen {
+  display: flex; flex-direction: column; gap: 18px;
+  padding-block: 16px 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.home { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+.screen-head { display: flex; align-items: center; gap: 12px; }
+.screen-head h1 { font: 20px/1.2 var(--font-display); }
+.back {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; font: 600 13px var(--font-data); cursor: pointer; white-space: nowrap;
+}
+section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; gap: 10px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.empty p { margin: 0; }
+
+/* ---------- start screen */
+.start { padding-top: max(32px, env(safe-area-inset-top, 0px)); }
+.title-card { display: flex; flex-direction: column; gap: 10px; padding-block: 12px; }
+.eyebrow { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0; }
+.big-title { font: clamp(40px, 13vw, 64px)/0.95 var(--font-display); letter-spacing: -0.01em; }
+.lede { margin: 0; max-width: 34em; font-size: 16px; }
+.final { font: 600 16px var(--font-data); margin: 0; }
+.final b { font-size: 28px; color: var(--accent); }
+
+/* ---------- rows */
+.row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px;
+}
+.card .row { background: none; border: 0; padding: 0; }
+.row-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.row-main b { overflow-wrap: anywhere; }
+.sub { color: var(--muted); font-size: 13px; }
+.num { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill {
+  font: 600 11px var(--font-data); padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.pill.good, .score.good { color: var(--good); border-color: var(--good); }
+.pill.mid, .score.mid { color: var(--mid); border-color: var(--mid); }
+.pill.bad, .score.bad { color: var(--led); border-color: var(--led); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
+/* ---------- news */
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.news li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
+.news time { font: 12px/1.7 var(--font-data); color: var(--muted); white-space: nowrap; }
+.news span { min-width: 0; overflow-wrap: anywhere; }
+.news li.note span { color: var(--muted); font-style: italic; }
+.news li.note time { visibility: hidden; }
+.news li.big span { font-weight: 600; }
+.news li.event span { color: var(--accent); }
+.news li.warn span { color: var(--led); font-weight: 600; }
+.report { border-color: var(--accent); }
+.report-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.report-head h2 { margin: 0; }
+.delta { font: 600 18px var(--font-data); font-variant-numeric: tabular-nums; }
+.delta.pos { color: var(--good); }
+.delta.neg { color: var(--led); }
+
+/* ---------- action grid */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px;
+  border-radius: var(--radius); padding: 12px; min-height: 64px; cursor: pointer;
+}
+.tile small { color: var(--muted); font-size: 12px; }
+.tile.ready { border-color: var(--accent); }
+.tile.ready small { color: var(--accent); font-weight: 600; }
+.tile:active, .btn:active, .opt:active, .chip:active { transform: translateY(1px); }
+
+/* ---------- buttons */
+.btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 44px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-bottom-width: 3px; font-weight: 600;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--led); border-color: var(--led); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.wide { width: 100%; }
+.btn-sub { font-weight: 400; font-size: 12px; opacity: 0.85; }
+.split { display: flex; flex-wrap: wrap; gap: 8px; }
+.split .btn { flex: 1 1 120px; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+
+/* ---------- dock */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  max-width: 600px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--plastic); border-top: 1px solid var(--line);
+  padding-top: 10px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.skip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.skip .btn { min-height: 40px; font: 600 13px var(--font-data); }
+.next { width: 100%; min-height: 54px; font: 18px var(--font-display); }
+
+/* ---------- forms */
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+legend {
+  font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  padding: 0; margin-bottom: 6px; width: 100%;
+}
+.legend-note { float: right; text-transform: none; letter-spacing: 0; color: var(--accent); }
+label { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+input, textarea {
+  width: 100%; background: var(--plastic); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; font-size: 16px; min-width: 0;
+}
+textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
+.opt {
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 10px;
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 12px; cursor: pointer; width: 100%;
+}
+.opt b { grid-column: 1; }
+.opt small { grid-column: 1; color: var(--muted); font-size: 12px; }
+.opt .num { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt.on b { color: var(--accent); }
+.opt:disabled { opacity: 0.5; cursor: default; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px;
+  font-size: 14px; cursor: pointer; min-height: 38px;
+}
+.chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.stepper {
+  display: grid; grid-template-columns: 82px 40px 30px 40px 1fr; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px;
+}
+.stepper span:first-child { font-weight: 600; font-size: 14px; }
+.step {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); border-bottom-width: 3px;
+  background: var(--plastic); font: 600 20px/1 var(--font-data); cursor: pointer;
+}
+.step:disabled { opacity: 0.35; }
+.stepper output { text-align: center; font: 600 18px var(--font-data); }
+.pips { color: var(--accent); letter-spacing: 1px; font-size: 12px; overflow: hidden; white-space: nowrap; }
+.lessons { border-left: 3px solid var(--accent); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
+.lessons h3 { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.lessons p { margin: 0; font-size: 13px; }
+
+/* ---------- data lists & tables */
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+dt { color: var(--muted); font-size: 13px; }
+dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+dd small { color: var(--muted); }
+dd.neg { color: var(--led); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { font: 600 11px var(--font-data); text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+td small { display: block; color: var(--muted); font-size: 11px; }
+tr.you td { color: var(--accent); font-weight: 600; }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+
+/* ---------- games list */
+details.game { display: block; padding: 0; }
+details.game summary { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; list-style: none; }
+details.game summary::-webkit-details-marker { display: none; }
+.score { font: 600 15px var(--font-data); border: 1px solid; border-radius: 8px; padding: 2px 8px; }
+.detail { padding: 0 12px 12px; font-size: 13px; color: var(--muted); }
+.detail p { margin: 0 0 4px; }
+.detail ul { margin: 4px 0 0; padding-left: 18px; }
+.rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; max-width: 65ch; }
+
+/* ---------- flash */
+.flash { padding: 10px 12px; border-radius: var(--radius); font-weight: 500; border: 1px solid; }
+.flash.ok { color: var(--good); border-color: var(--good); background: var(--panel); }
+.flash.err { color: var(--led); border-color: var(--led); background: var(--panel); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+<div id="app"><main class="screen"><p class="hint">Loading Console Tycoon…</p></main></div>
+<script>
+// Console Tycoon game data. Edit freely, then run: node tools/build.js
+"use strict";
+
+(function (root) {
+  // Each slot has tiers from cheapest to best. CPU, GPU and Memory tiers add
+  // their rating to a console's power; Storage, Controller and Case add to its
+  // appeal. Storage capacity limits how big a game the console can hold.
+  const tiers = (names, costs, extra) => names.map((name, i) =>
+    Object.assign({ name, rating: i + 1, unit_cost: costs[i] }, extra ? extra[i] : {}));
+
+  const DATA = {
+    START_YEAR: 1985,
+    STARTING_MONEY: 150000,
+    MONTH_NAMES: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+
+    POWER_SLOTS: ["CPU", "GPU", "Memory"],
+    APPEAL_SLOTS: ["Storage", "Controller", "Case"],
+    COMPONENTS: {
+      CPU: tiers(["8-bit Pico", "16-bit Duo", "32-bit Tri", "64-bit Quad", "Multicore X", "Octa Fusion", "Neural Core"],
+        [20, 28, 40, 55, 75, 100, 120]),
+      GPU: tiers(["Tile Blitter", "Sprite Engine", "Polygon Pusher", "Texel Forge", "Shader Array", "Ray Weaver", "Photon Matrix"],
+        [15, 22, 35, 50, 70, 95, 115]),
+      Memory: tiers(["64 KB RAM", "512 KB RAM", "4 MB RAM", "32 MB RAM", "512 MB RAM", "8 GB RAM", "32 GB RAM"],
+        [10, 13, 18, 25, 35, 45, 55]),
+      Storage: tiers(["ROM Cartridge", "Mega Cartridge", "CD-ROM Drive", "DVD Drive", "Blu-ray Drive", "Solid State Drive", "Cloud Hybrid"],
+        [8, 14, 20, 26, 35, 45, 50],
+        [1, 2, 3, 3, 4, 4, 4].map((capacity) => ({ capacity }))),
+      Controller: tiers(["Basic Pad", "Six-Button Pad", "Analog Stick Pad", "Rumble Pad", "Motion Wand", "Haptic Pad", "Neural Band"],
+        [5, 7, 10, 12, 16, 18, 22]),
+      Case: tiers(["Plastic Box", "Sleek Shell", "Translucent Shell", "Compact Slim", "Premium Alloy", "Designer Edition", "Morphing Shell"],
+        [8, 9, 10, 12, 16, 20, 24]),
+    },
+
+    FOCUS_AREAS: ["Gameplay", "Graphics", "Story", "Audio"],
+    FOCUS_POINTS: 10,
+    // Hidden ideal focus split per genre (sums to FOCUS_POINTS).
+    GENRES: {
+      Action: { Gameplay: 4, Graphics: 3, Story: 1, Audio: 2 },
+      Adventure: { Gameplay: 2, Graphics: 2, Story: 5, Audio: 1 },
+      Platformer: { Gameplay: 5, Graphics: 3, Story: 1, Audio: 1 },
+      Puzzle: { Gameplay: 6, Graphics: 1, Story: 1, Audio: 2 },
+      Racing: { Gameplay: 4, Graphics: 4, Story: 0, Audio: 2 },
+      Rhythm: { Gameplay: 4, Graphics: 1, Story: 0, Audio: 5 },
+      RPG: { Gameplay: 3, Graphics: 2, Story: 4, Audio: 1 },
+      Shooter: { Gameplay: 4, Graphics: 4, Story: 1, Audio: 1 },
+      Simulation: { Gameplay: 5, Graphics: 2, Story: 1, Audio: 2 },
+      Sports: { Gameplay: 4, Graphics: 3, Story: 0, Audio: 3 },
+      Strategy: { Gameplay: 5, Graphics: 1, Story: 3, Audio: 1 },
+    },
+    // Topic: [genres that fit well, genres that clash]
+    TOPICS: {
+      Aliens: [["Shooter", "Strategy", "Adventure"], ["Sports"]],
+      Animals: [["Platformer", "Simulation"], ["Shooter"]],
+      Cars: [["Racing", "Simulation"], ["RPG", "Adventure"]],
+      Cooking: [["Simulation", "Puzzle"], ["Shooter"]],
+      Cyberpunk: [["RPG", "Shooter", "Adventure"], ["Sports"]],
+      Detective: [["Adventure", "Puzzle"], ["Racing", "Sports"]],
+      Dinosaurs: [["Action", "Adventure"], ["Puzzle"]],
+      Fantasy: [["RPG", "Adventure", "Strategy"], ["Racing", "Sports"]],
+      Farming: [["Simulation", "Strategy"], ["Shooter", "Racing"]],
+      Horror: [["Adventure", "Shooter"], ["Sports", "Rhythm"]],
+      Medieval: [["Strategy", "RPG", "Action"], ["Racing", "Rhythm"]],
+      Music: [["Rhythm", "Simulation"], ["Shooter", "Strategy"]],
+      Mythology: [["RPG", "Action", "Strategy"], ["Racing"]],
+      Ninjas: [["Action", "Platformer"], ["Simulation"]],
+      Pirates: [["Adventure", "Action", "Strategy"], ["Racing"]],
+      Robots: [["Action", "Shooter", "Strategy"], ["Rhythm"]],
+      Soccer: [["Sports", "Simulation"], ["RPG", "Adventure", "Shooter"]],
+      Space: [["Shooter", "Strategy", "Simulation"], ["Sports", "Rhythm"]],
+      Spies: [["Action", "Adventure"], ["Rhythm"]],
+      Zombies: [["Shooter", "Action"], ["Puzzle", "Sports"]],
+    },
+    // months: dev time, cost: paid up front, capacity: storage needed,
+    // price: retail price, reach: sales multiplier, polish: review multiplier
+    GAME_SIZES: {
+      Small: { months: 2, cost: 10000, capacity: 1, price: 20, reach: 0.6, polish: 0.95 },
+      Medium: { months: 4, cost: 50000, capacity: 2, price: 35, reach: 1.0, polish: 1.0 },
+      Large: { months: 7, cost: 250000, capacity: 3, price: 50, reach: 1.6, polish: 1.03 },
+      AAA: { months: 11, cost: 1200000, capacity: 4, price: 60, reach: 2.4, polish: 1.06 },
+    },
+  };
+
+  if (typeof module !== "undefined" && module.exports) module.exports = DATA;
+  else root.CT_DATA = DATA;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+// Console Tycoon simulation: design consoles, make games for them, watch them sell.
+"use strict";
+
+(function (root) {
+  const D = root.CT_DATA || (typeof require !== "undefined" ? require("./data.js") : null);
+
+  const RETAIL_SHARE = 0.75;      // share of a console's price you keep after retailers
+  const GAME_SHARE = 0.70;        // share of a game's price you keep
+  const CONSOLE_DEMAND = 600;     // base console buyers per month
+  const SLOTS = [...D.POWER_SLOTS, ...D.APPEAL_SLOTS];
+  const SIZE_NAMES = Object.keys(D.GAME_SIZES);
+
+  class GameError extends Error {}
+
+  // ------------------------------------------------------------ random
+  class Rng {
+    constructor(seed) { this.seed(seed); }
+    seed(n) { this.a = (Math.floor(n) ^ 0x9e3779b9) >>> 0; for (let i = 0; i < 4; i++) this.random(); }
+    random() { // mulberry32
+      let t = (this.a = (this.a + 0x6d2b79f5) >>> 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    uniform(a, b) { return a + (b - a) * this.random(); }
+    gauss(mu, sigma) {
+      const u = 1 - this.random(), v = this.random();
+      return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+  }
+
+  // ------------------------------------------------------------ console stats
+  const part = (c, slot) => D.COMPONENTS[slot][c.parts[slot]];
+  const power = (c) => D.POWER_SLOTS.reduce((t, s) => t + part(c, s).rating, 0);
+  const appeal = (c) => D.APPEAL_SLOTS.reduce((t, s) => t + part(c, s).rating, 0);
+  const capacity = (c) => part(c, "Storage").capacity;
+  const unitCost = (c) => SLOTS.reduce((t, s) => t + part(c, s).unit_cost, 0);
+  const fairPrice = (c) => Math.round(80 + 15 * (power(c) + appeal(c)));
+  const devCost = (parts) => 15000 + 1000 * SLOTS.reduce((t, s) => t + D.COMPONENTS[s][parts[s]].unit_cost, 0);
+  const devMonths = (parts) => 3 + Math.floor(Math.max(...Object.values(parts)) / 2);
+  const biggestSize = (cap) => SIZE_NAMES.filter((k) => D.GAME_SIZES[k].capacity <= cap).pop();
+  const withArticle = (w) => (/^[AEIOU]/.test(w) ? `an ${w}` : `a ${w}`);
+
+  function newConsole(f) {
+    return Object.assign({ name: "", parts: {}, price: 0, status: "dev", dev_months_left: 0,
+      launch_month: -1, installed_base: 0, revenue: 0, profit: 0, last_sales: 0 }, f);
+  }
+  function newGame(f) {
+    return Object.assign({ title: "", genre: "", topic: "", size: "", platform: "", focus: {},
+      status: "dev", months_left: 0, release_month: -1, score: 0, reviews: [], feedback: [],
+      units_sold: 0, revenue: 0, last_sales: 0 }, f);
+  }
+
+  const FIELDS = ["version", "company", "seed", "money", "month", "consoles", "games", "news"];
+
+  class State {
+    constructor(f) {
+      Object.assign(this, { version: 2, company: "", seed: 1, money: D.STARTING_MONEY, month: 0,
+        consoles: [], games: [], news: [] }, f || {});
+      this.consoles = this.consoles.map(newConsole);
+      this.games = this.games.map(newGame);
+      this.rng = new Rng(this.seed * 1000 + this.month);
+    }
+
+    get date() { return `${D.MONTH_NAMES[this.month % 12]} ${D.START_YEAR + Math.floor(this.month / 12)}`; }
+    say(text) { this.news.push(`[${this.date}] ${text}`); }
+
+    console(name) {
+      const c = this.consoles.find((x) => x.name === name);
+      if (!c) throw new GameError(`No console named "${name}".`);
+      return c;
+    }
+    consoleInDev() { return this.consoles.find((c) => c.status === "dev") || null; }
+    gameInDev() { return this.games.find((g) => g.status === "dev") || null; }
+    platforms() { return this.consoles.filter((c) => c.status !== "retired" || c.installed_base > 0); }
+    nameTaken(name) {
+      const n = name.toLowerCase();
+      return this.consoles.some((c) => c.name.toLowerCase() === n) || this.games.some((g) => g.title.toLowerCase() === n);
+    }
+    spend(amount) {
+      if (amount > this.money) throw new GameError(`Not enough money: need ${fmtMoney(amount)}, have ${fmtMoney(this.money)}.`);
+      this.money -= amount;
+    }
+
+    // ---------------------------------------------------------- consoles
+    designConsole(name, parts, price) {
+      name = (name || "").trim();
+      if (!name) throw new GameError("Your console needs a name.");
+      if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
+      for (const s of SLOTS) {
+        if (!(parts[s] >= 0 && parts[s] < D.COMPONENTS[s].length)) throw new GameError(`Pick a ${s}.`);
+      }
+      if (!(price > 0)) throw new GameError("Price must be more than $0.");
+      if (this.consoleInDev()) throw new GameError("Your hardware team is already building a console.");
+      const cost = devCost(parts);
+      this.spend(cost);
+      const c = newConsole({ name, parts: { ...parts }, price: Math.round(price), dev_months_left: devMonths(parts) });
+      this.consoles.push(c);
+      this.say(`Hardware team began building the ${name} (${fmtMoney(cost)}).`);
+      return c;
+    }
+    setPrice(name, price) {
+      if (!(price > 0)) throw new GameError("Price must be more than $0.");
+      this.console(name).price = Math.round(price);
+    }
+    discontinue(name) {
+      const c = this.console(name);
+      if (c.status !== "active") throw new GameError("Only consoles on sale can be discontinued.");
+      c.status = "retired";
+      this.say(`${c.name} discontinued after selling ${fmtNum(c.installed_base)} units.`);
+    }
+
+    // ---------------------------------------------------------- games
+    startGame(title, genre, topic, size, platform, focus) {
+      title = (title || "").trim();
+      if (!title) throw new GameError("Your game needs a title.");
+      if (this.nameTaken(title)) throw new GameError(`The name "${title}" is already in use.`);
+      if (!(genre in D.GENRES) || !(topic in D.TOPICS) || !(size in D.GAME_SIZES)) throw new GameError("Pick a genre, topic and size.");
+      const vals = D.FOCUS_AREAS.map((a) => focus[a]);
+      if (vals.some((v) => !Number.isInteger(v) || v < 0) || vals.reduce((a, b) => a + b, 0) !== D.FOCUS_POINTS) {
+        throw new GameError(`Use exactly ${D.FOCUS_POINTS} focus points.`);
+      }
+      const plat = this.console(platform);
+      if (!this.platforms().includes(plat)) throw new GameError(`You can't make games for the ${plat.name}.`);
+      if (capacity(plat) < D.GAME_SIZES[size].capacity) throw new GameError(`A ${size} game won't fit on the ${plat.name}'s ${part(plat, "Storage").name}.`);
+      if (this.gameInDev()) throw new GameError("Your studio is already making a game.");
+      this.spend(D.GAME_SIZES[size].cost);
+      const g = newGame({ title, genre, topic, size, platform: plat.name, focus: { ...focus }, months_left: D.GAME_SIZES[size].months });
+      this.games.push(g);
+      this.say(`Started work on ${title} (${size} ${topic} ${genre}) for the ${plat.name}.`);
+      return g;
+    }
+
+    comboRating(genre, topic) {
+      const [good, bad] = D.TOPICS[topic];
+      return good.includes(genre) ? "great" : bad.includes(genre) ? "poor" : "okay";
+    }
+    focusMatch(genre, focus) {
+      const ideal = D.GENRES[genre];
+      return 1 - D.FOCUS_AREAS.reduce((t, a) => t + Math.abs(focus[a] - ideal[a]), 0) / (2 * D.FOCUS_POINTS);
+    }
+    // How much the console's power lifts or limits a game's graphics.
+    graphicsFactor(plat) { return Math.min(1.4, Math.max(0.6, power(plat) / 12)); }
+
+    reviewGame(g) {
+      const plat = this.console(g.platform);
+      let q = 2.3 + 6.5 * this.focusMatch(g.genre, g.focus) ** 1.5;
+      q *= { great: 1.12, okay: 1.0, poor: 0.75 }[this.comboRating(g.genre, g.topic)];
+      const gf = this.graphicsFactor(plat);
+      q *= gf ** (0.05 * g.focus.Graphics);
+      q *= D.GAME_SIZES[g.size].polish;
+      const prev = this.games.filter((x) => x.status === "released").sort((a, b) => b.release_month - a.release_month)[0];
+      if (prev && prev.genre === g.genre && prev.topic === g.topic) q *= 0.85;
+      q += this.rng.gauss(0, 0.5);
+      g.reviews = [0, 1, 2, 3].map(() => Math.min(10, Math.max(1, Math.round(q + this.rng.gauss(0, 0.6)))));
+      g.score = g.reviews.reduce((a, b) => a + b, 0) / 4;
+      g.feedback = this.critique(g, gf, prev);
+    }
+
+    critique(g, gf, prev) {
+      const notes = [];
+      const ideal = D.GENRES[g.genre];
+      const diffs = Object.fromEntries(D.FOCUS_AREAS.map((a) => [a, g.focus[a] - ideal[a]]));
+      const worst = D.FOCUS_AREAS.reduce((a, b) => (Math.abs(diffs[b]) > Math.abs(diffs[a]) ? b : a));
+      if (Object.values(diffs).every((d) => Math.abs(d) <= 1)) notes.push(`Critics felt the focus was just right for ${withArticle(g.genre)} game.`);
+      else if (diffs[worst] < 0) notes.push(`Critics wanted more ${worst} from ${withArticle(g.genre)} game.`);
+      else notes.push(`Critics thought too much effort went into ${worst} for ${withArticle(g.genre)} game.`);
+      const rating = this.comboRating(g.genre, g.topic);
+      if (rating === "great") notes.push(`${g.topic} and ${g.genre} are a fantastic match!`);
+      else if (rating === "poor") notes.push(`Players found ${g.topic} a strange theme for ${withArticle(g.genre)} game.`);
+      if (gf < 0.8 && g.focus.Graphics >= 3) notes.push(`The ${g.platform}'s weak hardware held the graphics back.`);
+      else if (gf > 1.2 && g.focus.Graphics >= 3) notes.push(`The ${g.platform}'s power made the graphics shine.`);
+      if (prev && prev.genre === g.genre && prev.topic === g.topic) notes.push("Players felt they had played this before.");
+      return notes;
+    }
+
+    // ---------------------------------------------------------- sales
+    libraryFactor(c) {
+      const hits = this.games.filter((g) => g.status === "released" && g.platform === c.name && this.month - g.release_month <= 36)
+        .reduce((t, g) => t + 2 ** (g.score - 6) * D.GAME_SIZES[g.size].reach, 0);
+      return 0.6 + Math.min(2.0, hits / 6);
+    }
+    consoleDemand(c) {
+      const age = this.month - c.launch_month;
+      const quality = ((power(c) + appeal(c)) / 12) ** 0.8;
+      const priceFactor = Math.min(4, Math.max(0.05, (fairPrice(c) / c.price) ** 2));
+      const hype = age < 3 ? 1.4 : 1;
+      return CONSOLE_DEMAND * quality * priceFactor * this.libraryFactor(c) * hype * 0.975 ** age;
+    }
+
+    // ---------------------------------------------------------- the clock
+    advance() {
+      const start = this.news.length;
+      this.month += 1;
+      this.rng.seed(this.seed * 1000 + this.month);
+      const before = this.money;
+
+      for (const c of this.consoles) {
+        if (c.status === "dev" && --c.dev_months_left <= 0) {
+          c.status = "active";
+          c.launch_month = this.month;
+          this.say(`The ${c.name} is in stores! Launch price $${c.price}.`);
+        }
+      }
+      for (const g of this.games) {
+        if (g.status !== "dev" || --g.months_left > 0) continue;
+        const plat = this.console(g.platform);
+        if (plat.status === "dev") { g.months_left = 1; continue; } // ships with the console
+        this.reviewGame(g);
+        g.status = "released";
+        g.release_month = this.month;
+        this.say(`${g.title} released on the ${plat.name}! Reviews: ${g.reviews.join(" / ")} (avg ${g.score.toFixed(1)})`);
+        for (const n of g.feedback) this.say(`  - ${n}`);
+      }
+
+      for (const c of this.consoles) {
+        c.last_sales = 0;
+        if (c.status !== "active") continue;
+        const units = Math.trunc(this.consoleDemand(c) * this.rng.uniform(0.9, 1.1));
+        const rev = Math.trunc(units * c.price * RETAIL_SHARE);
+        const profit = rev - units * unitCost(c);
+        c.last_sales = units;
+        c.installed_base += units;
+        c.revenue += rev;
+        c.profit += profit;
+        this.money += profit;
+      }
+
+      for (const g of this.games) {
+        g.last_sales = 0;
+        if (g.status !== "released") continue;
+        const age = this.month - g.release_month;
+        const plat = this.console(g.platform);
+        let copies = plat.installed_base * 0.02 * 2 ** (g.score - 6) * D.GAME_SIZES[g.size].reach * 0.8 ** age;
+        if (plat.status === "retired") copies *= 0.5;
+        copies = Math.min(Math.trunc(copies), plat.installed_base);
+        if (copies < 20 || age > 36) continue;
+        const rev = Math.trunc(copies * D.GAME_SIZES[g.size].price * GAME_SHARE);
+        g.last_sales = copies;
+        g.units_sold += copies;
+        g.revenue += rev;
+        this.money += rev;
+      }
+
+      const fresh = this.news.slice(start);
+      this.news = this.news.slice(-100);
+      return { lines: fresh, delta: this.money - before };
+    }
+
+    toDict() { return Object.fromEntries(FIELDS.map((f) => [f, this[f]])); }
+    toJSON() { return this.toDict(); }
+    static fromDict(d) {
+      if (!d || d.version !== 2) throw new GameError("That save is from a different version of the game.");
+      return new State(d);
+    }
+  }
+
+  function createGame(company, seed) {
+    const s = new State({ company, seed: seed === undefined ? 1 + Math.floor(Math.random() * 999999) : seed });
+    s.say(`${company} opens its doors in a garage. Design a console, then make games for it!`);
+    return s;
+  }
+
+  function fmtMoney(n) {
+    const sign = n < 0 ? "-" : "", a = Math.abs(n);
+    if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
+    if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`;
+    if (a >= 10000) return `${sign}$${Math.round(a / 1000)}K`;
+    return `${sign}$${Math.round(a).toLocaleString("en-US")}`;
+  }
+  function fmtNum(n) {
+    if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+    if (n >= 10000) return `${Math.round(n / 1000)}K`;
+    return Math.trunc(n).toLocaleString("en-US");
+  }
+
+  const api = { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity, unitCost,
+    fairPrice, devCost, devMonths, biggestSize, SLOTS, SIZE_NAMES, RETAIL_SHARE, GAME_SHARE };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.CT = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+// Console Tycoon touch UI. Renders screens into #app and handles taps.
+"use strict";
+
+(function () {
+  const { D, State, GameError, createGame, fmtMoney, fmtNum, part, power, appeal, capacity, unitCost,
+    fairPrice, devCost, devMonths, biggestSize, SLOTS, SIZE_NAMES, RETAIL_SHARE } = window.CT;
+
+  const SAVE_KEY = "console-tycoon-save-v2";
+  const app = document.getElementById("app");
+
+  let s = null;          // game State
+  let view = "start";
+  let draft = {};        // in-progress form values for the current screen
+  let flash = null;      // {kind, text}
+  let report = null;     // result of the last time skip
+  let confirmKey = null; // a destructive button waiting for its second tap
+
+  // ------------------------------------------------------------ utils
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const signed = (n) => (n >= 0 ? "+" : "") + fmtMoney(n);
+  function short(n) { // compact money for the status strip
+    const a = Math.abs(n), sign = n < 0 ? "-" : "";
+    if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(1)}B`;
+    if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`;
+    if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
+    return `${sign}$${Math.round(a)}`;
+  }
+
+  function store(value) {
+    try { if (value === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, value); } catch (e) { /* storage unavailable */ }
+  }
+  function loadSaved() {
+    try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
+  }
+  function autosave() { if (s) store(JSON.stringify(s)); }
+
+  function attempt(fn, okText) {
+    try {
+      fn();
+      if (okText) flash = { kind: "ok", text: okText };
+      autosave();
+      return true;
+    } catch (e) {
+      if (!(e instanceof GameError)) throw e;
+      flash = { kind: "err", text: e.message };
+      return false;
+    }
+  }
+
+  function go(v) {
+    view = v;
+    draft = {};
+    confirmKey = null;
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  // ------------------------------------------------------------ pieces
+  function topbar() {
+    const owners = s.consoles.reduce((t, c) => t + c.installed_base, 0);
+    const copies = s.games.reduce((t, g) => t + g.units_sold, 0);
+    return `
+    <header class="lcd">
+      <div class="lcd-head">
+        <button class="logo" data-act="go" data-arg="home" aria-label="Back to headquarters">${esc(s.company)}</button>
+        <span class="date">${s.date}</span>
+      </div>
+      <div class="lcd-stats">
+        <div class="stat"><b>${short(s.money)}</b><small>cash</small></div>
+        <div class="stat"><b>${fmtNum(owners)}</b><small>consoles sold</small></div>
+        <div class="stat"><b>${fmtNum(copies)}</b><small>games sold</small></div>
+      </div>
+    </header>`;
+  }
+
+  function flashBox() {
+    if (!flash) return "";
+    const f = flash;
+    flash = null;
+    return `<div class="flash ${f.kind}" role="status">${esc(f.text)}</div>`;
+  }
+
+  function screen(title, body) {
+    return `${topbar()}
+      <main class="screen">
+        <div class="screen-head"><button class="back" data-act="go" data-arg="home">&larr; HQ</button><h1>${title}</h1></div>
+        ${flashBox()}
+        ${body}
+      </main>`;
+  }
+
+  function newsLine(line) {
+    const m = line.match(/^\[(\w+ \d+)\] (.*)$/);
+    let text = m ? m[2] : line;
+    let cls = "";
+    if (/^ {2}- /.test(text)) { cls = "note"; text = text.trim().slice(2); }
+    if (/released on|is in stores/.test(text)) cls = "big";
+    return `<li class="${cls}"><time>${esc(m ? m[1] : "")}</time><span>${esc(text)}</span></li>`;
+  }
+
+  // Newest first, keeping critic notes under the headline they belong to.
+  function latestNews(n) {
+    const groups = [];
+    for (const line of s.news.slice(-n - 6)) {
+      if (/^\[[^\]]+\] {2}- /.test(line) && groups.length) groups[groups.length - 1].push(line);
+      else groups.push([line]);
+    }
+    return groups.reverse().flat().slice(0, n);
+  }
+
+  const progress = (frac) => `<div class="bar"><i style="width:${Math.max(4, Math.min(100, frac * 100))}%"></i></div>`;
+
+  function consoleRow(c) {
+    if (c.status === "dev") {
+      const total = devMonths(c.parts);
+      return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+        <span class="sub">Being built · launches in ${c.dev_months_left} mo</span>${progress((total - c.dev_months_left) / total)}</div></div>`;
+    }
+    const state = c.status === "active" ? `$${c.price} · ${fmtNum(c.last_sales)} sold last month` : "Discontinued";
+    return `<div class="row"><div class="row-main"><b>${esc(c.name)}</b>
+      <span class="sub">${state} · ${fmtNum(c.installed_base)} owners</span></div>
+      <span class="pill">${power(c)} pwr · ${appeal(c)} app</span></div>`;
+  }
+
+  function gameRow(g) {
+    const total = D.GAME_SIZES[g.size].months;
+    return `<div class="row"><div class="row-main"><b>${esc(g.title)}</b>
+      <span class="sub">${g.size} ${g.topic} ${g.genre} for ${esc(g.platform)} · ${g.months_left} mo left</span>
+      ${progress((total - g.months_left) / total)}</div></div>`;
+  }
+
+  // ------------------------------------------------------------ views
+  const views = {};
+
+  views.start = () => {
+    let savedInfo = "";
+    const saved = loadSaved();
+    if (saved) {
+      try { const st = State.fromDict(JSON.parse(saved)); savedInfo = `${esc(st.company)} · ${st.date}`; } catch (e) { savedInfo = ""; }
+    }
+    return `
+    <main class="screen start">
+      <div class="title-card">
+        <p class="eyebrow">A console-making game</p>
+        <h1 class="big-title">Console<br>Tycoon</h1>
+        <p class="lede">You have a garage and ${fmtMoney(D.STARTING_MONEY)}. Design a games console, make games for it, and watch them sell.</p>
+      </div>
+      ${flashBox()}
+      ${savedInfo ? `<button class="btn primary wide" data-act="continue">Continue <span class="btn-sub">${savedInfo}</span></button>` : ""}
+      <form class="card" data-form="new">
+        <label for="company">Company name</label>
+        <input id="company" maxlength="30" autocomplete="off" placeholder="Garage Games" value="${esc(draft.company || "")}" data-bind="company">
+        <button class="btn ${savedInfo ? "" : "primary"} wide" type="submit">${savedInfo ? "Start a new company" : "Start your company"}</button>
+        ${savedInfo ? `<p class="hint">Starting over replaces your saved game.</p>` : ""}
+      </form>
+      <div class="split">
+        <button class="btn" data-act="go" data-arg="help">How to play</button>
+        <button class="btn" data-act="go" data-arg="saves">Import a save</button>
+      </div>
+    </main>`;
+  };
+
+  views.home = () => {
+    const consoles = s.consoles.filter((c) => c.status !== "retired");
+    const dev = s.gameInDev();
+    const sellers = s.games.filter((g) => g.last_sales).sort((a, b) => b.last_sales - a.last_sales).slice(0, 3);
+    const rep = report ? `<section class="card report">
+        <div class="report-head"><h2>${report.months === 1 ? s.date : `${report.from} – ${s.date}`}</h2>
+        <span class="delta ${report.delta < 0 ? "neg" : "pos"}">${signed(report.delta)}</span></div>
+        ${report.lines.length ? `<ul class="news">${report.lines.map(newsLine).join("")}</ul>` : `<p class="hint">A quiet month.</p>`}
+      </section>` : "";
+    const hw = consoles.length ? consoles.map(consoleRow).join("") + (s.consoleInDev() ? "" : `<button class="btn" data-act="go" data-arg="design">Design another console</button>`)
+      : `<div class="empty"><p>You don't have a console yet. Design one first; you can start a game for it while it's being built.</p>
+         <button class="btn primary" data-act="go" data-arg="design">Design your first console</button></div>`;
+    const sw = dev ? gameRow(dev) : s.consoles.length
+      ? `<div class="empty"><p>Your studio is free.</p><button class="btn ${consoles.length ? "primary" : ""}" data-act="go" data-arg="game">Make a game</button></div>`
+      : `<p class="hint">Design a console first, then make games for it.</p>`;
+    const top = sellers.length ? `<section><h2>Best sellers last month</h2>${sellers.map((g) =>
+      `<div class="row"><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${esc(g.platform)} · score ${g.score.toFixed(1)}</span></div><span class="num">${fmtNum(g.last_sales)}</span></div>`).join("")}</section>` : "";
+    const news = latestNews(8);
+    return `${topbar()}
+      <main class="screen home">
+        ${flashBox()}
+        ${rep}
+        <section><h2>Your consoles</h2>${hw}</section>
+        <section><h2>Your studio</h2>${sw}</section>
+        ${top}
+        <nav class="grid" aria-label="Actions">
+          <button class="tile" data-act="go" data-arg="consoles"><b>Consoles</b><small>${s.consoles.length} designed</small></button>
+          <button class="tile" data-act="go" data-arg="games"><b>Games</b><small>${s.games.filter((g) => g.status === "released").length} released</small></button>
+        </nav>
+        ${news.length && !report ? `<section><h2>News</h2><ul class="news">${news.map(newsLine).join("")}</ul></section>` : ""}
+        <button class="btn quiet" data-act="go" data-arg="saves">Save, load &amp; how to play</button>
+      </main>
+      <footer class="dock">
+        <div class="skip">
+          <button class="btn" data-act="advance" data-arg="3">+3 mo</button>
+          <button class="btn" data-act="advance" data-arg="6">+6 mo</button>
+          <button class="btn" data-act="advance" data-arg="12">+1 yr</button>
+        </div>
+        <button class="btn primary next" data-act="advance" data-arg="1">Next month &rarr;</button>
+      </footer>`;
+  };
+
+  // ---------- design a console
+  views.design = () => {
+    if (s.consoleInDev()) {
+      return screen("Design a console", `<div class="empty"><p>Your hardware team is already building a console. Design the next one after it launches.</p></div>`);
+    }
+    if (!draft.parts) draft.parts = Object.fromEntries(SLOTS.map((sl) => [sl, 0]));
+    const proto = { parts: draft.parts };
+    const cost = devCost(draft.parts);
+    const fair = fairPrice(proto);
+    const price = draft.priceTouched ? draft.price : fair;
+    const slots = SLOTS.map((slot) => {
+      const kind = D.POWER_SLOTS.includes(slot) ? "power" : "appeal";
+      const opts = D.COMPONENTS[slot].map((t, i) => `
+        <button class="opt ${draft.parts[slot] === i ? "on" : ""}" data-act="part" data-arg="${slot}:${i}" aria-pressed="${draft.parts[slot] === i}">
+          <b>${t.name}</b><small>+${t.rating} ${kind}${t.capacity ? ` · fits ${biggestSize(t.capacity)} games` : ""}</small>
+          <span class="num">$${t.unit_cost}</span></button>`).join("");
+      return `<fieldset><legend>${slot}</legend>${opts}</fieldset>`;
+    }).join("");
+    const afford = cost <= s.money;
+    return screen("Design a console", `
+      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. Better parts cost more per console.</p>
+      ${slots}
+      <section class="card spec">
+        <h2>Spec sheet</h2>
+        <dl>
+          <dt>Power</dt><dd>${power(proto)} / 21</dd>
+          <dt>Appeal</dt><dd>${appeal(proto)} / 21</dd>
+          <dt>Largest game</dt><dd>${biggestSize(capacity(proto))}</dd>
+          <dt>Cost per unit</dt><dd>$${unitCost(proto)}</dd>
+          <dt>Development</dt><dd>${fmtMoney(cost)} · ${devMonths(draft.parts)} months</dd>
+          <dt>Fair price</dt><dd>about $${fair} <small>(you keep ${Math.round(RETAIL_SHARE * 100)}%, ~$${Math.round(fair * RETAIL_SHARE - unitCost(proto))} profit each)</small></dd>
+        </dl>
+        <label for="cname">Console name</label>
+        <input id="cname" maxlength="24" autocomplete="off" placeholder="e.g. Gizmo 64" value="${esc(draft.name || "")}" data-bind="name">
+        <label for="cprice">Price ($)</label>
+        <input id="cprice" type="number" inputmode="numeric" min="1" value="${price}" data-bind="price">
+        <button class="btn primary wide" data-act="build" ${afford ? "" : "disabled"}>${afford ? `Build it for ${fmtMoney(cost)}` : `Need ${fmtMoney(cost)}`}</button>
+      </section>`);
+  };
+
+  // ---------- make a game
+  function gameReady() {
+    const d = draft;
+    const used = D.FOCUS_AREAS.reduce((t, a) => t + d.focus[a], 0);
+    return Boolean(d.platform && d.size && d.genre && d.topic && used === D.FOCUS_POINTS && (d.title || "").trim());
+  }
+
+  views.game = () => {
+    const d = draft;
+    if (!d.focus) d.focus = { Gameplay: 4, Graphics: 2, Story: 2, Audio: 2 };
+    const plats = s.platforms();
+    if (!plats.length) return screen("Make a game", `<div class="empty"><p>Design a console first, then make games for it.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
+    if (s.gameInDev()) return screen("Make a game", `<div class="empty"><p>Your studio is busy with ${esc(s.gameInDev().title)}. Start the next game when it ships.</p></div>`);
+    if (!d.platform && plats.length === 1) d.platform = plats[0].name;
+    const plat = d.platform ? s.console(d.platform) : null;
+    if (d.size && plat && D.GAME_SIZES[d.size].capacity > capacity(plat)) d.size = null;
+
+    const platOpts = plats.map((c) => `
+      <button class="opt ${d.platform === c.name ? "on" : ""}" data-act="pick" data-arg="platform:${esc(c.name)}">
+        <b>${esc(c.name)}</b><small>${c.status === "dev" ? "Being built" : `${fmtNum(c.installed_base)} owners`} · ${power(c)} power · up to ${biggestSize(capacity(c))}</small></button>`).join("");
+
+    const sizeOpts = SIZE_NAMES.map((name) => {
+      const sp = D.GAME_SIZES[name];
+      const why = [];
+      if (plat && sp.capacity > capacity(plat)) why.push("won't fit");
+      if (sp.cost > s.money) why.push("too expensive");
+      return `<button class="opt ${d.size === name ? "on" : ""}" data-act="pick" data-arg="size:${name}" ${why.length ? "disabled" : ""}>
+        <b>${name}</b><small>${sp.months} months · sells at $${sp.price}${why.length ? ` · ${why.join(", ")}` : ""}</small>
+        <span class="num">${fmtMoney(sp.cost)}</span></button>`;
+    }).join("");
+
+    const chips = (key, list) => `<div class="chips">${list.map((x) =>
+      `<button class="chip ${d[key] === x ? "on" : ""}" data-act="pick" data-arg="${key}:${x}" aria-pressed="${d[key] === x}">${x}</button>`).join("")}</div>`;
+
+    const left = D.FOCUS_POINTS - D.FOCUS_AREAS.reduce((t, a) => t + d.focus[a], 0);
+    const focus = D.FOCUS_AREAS.map((a) => `
+      <div class="stepper">
+        <span>${a}</span>
+        <button class="step" data-act="focus" data-arg="${a}:-1" aria-label="Less ${a}" ${d.focus[a] <= 0 ? "disabled" : ""}>&minus;</button>
+        <output>${d.focus[a]}</output>
+        <button class="step" data-act="focus" data-arg="${a}:1" aria-label="More ${a}" ${left <= 0 ? "disabled" : ""}>+</button>
+        <span class="pips">${"■".repeat(d.focus[a])}</span>
+      </div>`).join("");
+
+    let lessons = "";
+    if (d.genre || d.topic) {
+      const past = s.games.filter((g) => g.status === "released" && (g.genre === d.genre || g.topic === d.topic))
+        .sort((a, b) => b.release_month - a.release_month).slice(0, 3);
+      if (past.length) {
+        lessons = `<div class="lessons"><h3>Your notes</h3>${past.map((g) => `<p><b>${esc(g.title)}</b> (${g.topic} ${g.genre}, ${D.FOCUS_AREAS.map((a) => g.focus[a]).join("/")}) scored ${g.score.toFixed(1)}. ${g.feedback.map(esc).join(" ")}</p>`).join("")}</div>`;
+      }
+    }
+
+    const ready = gameReady();
+    return screen("Make a game", `
+      <fieldset><legend>Console</legend>${platOpts}</fieldset>
+      <fieldset><legend>Size</legend>${sizeOpts}</fieldset>
+      <fieldset><legend>Genre</legend>${chips("genre", Object.keys(D.GENRES).sort())}</fieldset>
+      <fieldset><legend>Topic</legend>${chips("topic", Object.keys(D.TOPICS).sort())}</fieldset>
+      <fieldset><legend>Focus <span class="legend-note">${left === 0 ? "all 10 points used" : `${left} point${left === 1 ? "" : "s"} left`}</span></legend>
+        <p class="hint">Each genre has a hidden ideal split. Reviews tell you how close you got. Graphics look better on powerful consoles.</p>
+        ${focus}
+        ${lessons}
+      </fieldset>
+      <section class="card">
+        <label for="gtitle">Title</label>
+        <input id="gtitle" maxlength="30" autocomplete="off" placeholder="e.g. Neon Ninja" value="${esc(d.title || "")}" data-bind="title">
+        <button class="btn primary wide" data-act="startgame" ${ready ? "" : "disabled"}>Start development</button>
+        <p class="hint" id="gamehint" ${ready ? "hidden" : ""}>Pick a console, size, genre and topic, use all 10 focus points, and give it a title.</p>
+      </section>`);
+  };
+
+  // ---------- consoles
+  views.consoles = () => {
+    if (!s.consoles.length) return screen("Consoles", `<div class="empty"><p>You haven't designed a console yet.</p><button class="btn primary" data-act="go" data-arg="design">Design a console</button></div>`);
+    const cards = s.consoles.slice().reverse().map((c) => {
+      const parts = SLOTS.map((sl) => part(c, sl).name).join(" · ");
+      const head = `${consoleRow(c)}<p class="hint">${parts}</p>`;
+      if (c.status === "dev") return `<section class="card">${head}</section>`;
+      const own = s.games.filter((g) => g.platform === c.name && g.status === "released").length;
+      const key = `retire:${c.name}`;
+      return `<section class="card">
+        ${head}
+        <dl>
+          <dt>Cost per unit</dt><dd>$${unitCost(c)} · fair price $${fairPrice(c)}</dd>
+          <dt>Revenue</dt><dd>${fmtMoney(c.revenue)}</dd>
+          <dt>Profit</dt><dd class="${c.profit < 0 ? "neg" : ""}">${fmtMoney(c.profit)}</dd>
+          <dt>Games</dt><dd>${own}</dd>
+        </dl>
+        ${c.status === "active" ? `
+        <div class="inline">
+          <label for="p-${esc(c.name)}" class="sr">Price</label>
+          <input id="p-${esc(c.name)}" type="number" inputmode="numeric" min="1" value="${c.price}" data-price-for="${esc(c.name)}">
+          <button class="btn" data-act="setprice" data-arg="${esc(c.name)}">Set price</button>
+        </div>
+        <button class="btn danger" data-act="retire" data-arg="${esc(c.name)}">${confirmKey === key ? "Tap again to discontinue" : "Discontinue"}</button>` : ""}
+      </section>`;
+    }).join("");
+    return screen("Consoles", (s.consoleInDev() ? "" : `<button class="btn primary wide" data-act="go" data-arg="design">Design a new console</button>`) + cards);
+  };
+
+  // ---------- games
+  views.games = () => {
+    const newBtn = s.consoles.length && !s.gameInDev() ? `<button class="btn primary wide" data-act="go" data-arg="game">Make a new game</button>` : "";
+    if (!s.games.length) return screen("Games", newBtn || `<div class="empty"><p>Design a console first, then make games for it.</p></div>`);
+    const dev = s.gameInDev();
+    const released = s.games.filter((g) => g.status === "released").sort((a, b) => b.release_month - a.release_month);
+    return screen("Games", newBtn + (dev ? gameRow(dev) : "") + released.map((g) => {
+      const cls = g.score >= 8 ? "good" : g.score >= 6 ? "mid" : "bad";
+      return `<details class="row game">
+        <summary><div class="row-main"><b>${esc(g.title)}</b><span class="sub">${g.size} ${g.topic} ${g.genre} · ${esc(g.platform)} · ${fmtNum(g.units_sold)} sold</span></div>
+        <span class="score ${cls}">${g.score.toFixed(1)}</span></summary>
+        <div class="detail">
+          <p>Reviews ${g.reviews.join(" / ")} · Revenue ${fmtMoney(g.revenue)}</p>
+          <p>Focus: ${D.FOCUS_AREAS.map((a) => `${a} ${g.focus[a]}`).join(", ")}</p>
+          <ul>${g.feedback.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+        </div>
+      </details>`;
+    }).join(""));
+  };
+
+  // ---------- saves & help
+  const HELP = `
+    <ul class="rules">
+      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits.</li>
+      <li><b>Price it</b> near what buyers think is fair. Cheaper sells more units, but you make less on each one.</li>
+      <li><b>Make games</b> for your consoles. You can start one while the console is being built; it ships at launch.</li>
+      <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
+      <li><b>Good games sell consoles</b>, and more console owners means more game sales.</li>
+      <li><b>Console sales fade</b> over time. Design a new one to keep growing.</li>
+    </ul>`;
+
+  views.help = () => (s ? screen("How to play", HELP)
+    : `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>How to play</h1></div>${HELP}</main>`);
+
+  views.saves = () => {
+    const body = `
+      ${s ? `<section class="card">
+        <h2>Export save</h2>
+        <p class="hint">The game saves itself on this device after every move. Copy this code to move your game to another device.</p>
+        <textarea id="exporttext" readonly rows="4">${esc(JSON.stringify(s))}</textarea>
+        <button class="btn wide" data-act="copy">Copy save code</button>
+      </section>` : ""}
+      <section class="card">
+        <h2>Import save</h2>
+        <p class="hint">Paste a save code from another device.</p>
+        <textarea id="importtext" rows="4" placeholder='{"version": 2, ...}' data-bind="importText">${esc(draft.importText || "")}</textarea>
+        <button class="btn wide" data-act="import">Load this save</button>
+      </section>
+      ${s ? `<section class="card"><h2>Start over</h2><p class="hint">Ends this company and deletes its save on this device.</p>
+        <button class="btn danger wide" data-act="restart">${confirmKey === "restart" ? "Tap again to delete and start over" : "Start a new company"}</button></section>
+        <section><h2>How to play</h2>${HELP}</section>` : ""}`;
+    if (s) return screen("Save &amp; help", body);
+    return `<main class="screen"><div class="screen-head"><button class="back" data-act="go" data-arg="start">&larr; Back</button><h1>Import a save</h1></div>${flashBox()}${body}</main>`;
+  };
+
+  // ------------------------------------------------------------ actions
+  function nextDate(dateStr) {
+    const [m, y] = dateStr.split(" ");
+    const i = (D.MONTH_NAMES.indexOf(m) + 1) % 12;
+    return `${D.MONTH_NAMES[i]} ${Number(y) + (i === 0 ? 1 : 0)}`;
+  }
+
+  const actions = {
+    go: (v) => go(v),
+    continue: () => {
+      try { s = State.fromDict(JSON.parse(loadSaved())); } catch (e) { flash = { kind: "err", text: "That save couldn't be read." }; return render(); }
+      report = null;
+      go("home");
+    },
+    advance: (n) => {
+      const from = nextDate(s.date);
+      let lines = [], delta = 0;
+      for (let i = 0; i < Number(n); i++) {
+        const r = s.advance();
+        lines = lines.concat(r.lines);
+        delta += r.delta;
+      }
+      report = { months: Number(n), from, delta, lines };
+      autosave();
+      go("home");
+    },
+    part: (arg) => {
+      const [slot, i] = arg.split(":");
+      draft.parts[slot] = Number(i);
+      render();
+    },
+    build: () => {
+      const proto = { parts: draft.parts };
+      const price = draft.priceTouched ? Number(draft.price) : fairPrice(proto);
+      const name = (draft.name || "").trim();
+      if (attempt(() => s.designConsole(name, draft.parts, price), `Engineers are building the ${name}. It launches in ${devMonths(draft.parts)} months.`)) go("home");
+      else render();
+    },
+    pick: (arg) => {
+      const i = arg.indexOf(":");
+      draft[arg.slice(0, i)] = arg.slice(i + 1);
+      render();
+    },
+    focus: (arg) => {
+      const [area, delta] = arg.split(":");
+      const used = D.FOCUS_AREAS.reduce((t, a) => t + draft.focus[a], 0);
+      const v = draft.focus[area] + Number(delta);
+      if (v >= 0 && used + Number(delta) <= D.FOCUS_POINTS) draft.focus[area] = v;
+      render();
+    },
+    startgame: () => {
+      const d = draft;
+      if (attempt(() => s.startGame(d.title, d.genre, d.topic, d.size, d.platform, d.focus), `Development started on ${d.title.trim()}.`)) go("home");
+      else render();
+    },
+    setprice: (name) => {
+      const input = document.querySelector(`[data-price-for="${CSS.escape(name)}"]`);
+      const price = Number(input.value);
+      attempt(() => s.setPrice(name, price), `The ${name} now sells for $${Math.round(price)}.`);
+      render();
+    },
+    retire: (name) => {
+      const key = `retire:${name}`;
+      if (confirmKey !== key) { confirmKey = key; return render(); }
+      confirmKey = null;
+      attempt(() => s.discontinue(name), `${name} discontinued.`);
+      render();
+    },
+    copy: () => {
+      const box = document.getElementById("exporttext");
+      const fallback = () => { box.focus(); box.select(); flash = { kind: "ok", text: "Selected. Use your phone's Copy." }; render(); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.value).then(() => { flash = { kind: "ok", text: "Save code copied." }; render(); }, fallback);
+      } else fallback();
+    },
+    import: () => {
+      try {
+        s = State.fromDict(JSON.parse(draft.importText || ""));
+      } catch (e) {
+        flash = { kind: "err", text: e instanceof GameError ? e.message : "That doesn't look like a save code. Paste the whole code, including the { and }." };
+        return render();
+      }
+      report = null;
+      autosave();
+      flash = { kind: "ok", text: `Loaded ${s.company}.` };
+      go("home");
+    },
+    restart: () => {
+      if (confirmKey !== "restart") { confirmKey = "restart"; return render(); }
+      s = null;
+      report = null;
+      store(null);
+      go("start");
+    },
+  };
+
+  // ------------------------------------------------------------ wiring
+  function render() { app.innerHTML = (views[view] || views.start)(); }
+
+  app.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-act]");
+    if (!el || el.disabled) return;
+    e.preventDefault();
+    const act = actions[el.dataset.act];
+    if (act) act(el.dataset.arg);
+  });
+
+  app.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!el.dataset || !el.dataset.bind) return;
+    draft[el.dataset.bind] = el.value;
+    if (el.dataset.bind === "price") draft.priceTouched = true;
+    if (view === "game" && el.dataset.bind === "title") {
+      // Update the start button without re-rendering, so the keyboard stays open.
+      const ok = gameReady();
+      const btn = app.querySelector('[data-act="startgame"]');
+      const hint = document.getElementById("gamehint");
+      if (btn) btn.disabled = !ok;
+      if (hint) hint.hidden = ok;
+    }
+  });
+
+  app.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (e.target.dataset.form === "new") {
+      s = createGame((draft.company || "").trim() || "Garage Games");
+      report = null;
+      autosave();
+      go("home");
+    }
+  });
+
+  // Keep the game across live updates of the page.
+  function start(data) {
+    if (data && data.save) {
+      try { s = State.fromDict(data.save); view = data.view || "home"; draft = data.draft || {}; } catch (e) { s = null; }
+    }
+    if (!s) view = view === "help" || view === "saves" ? view : "start";
+    render();
+  }
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ save: s ? s.toDict() : null, view, draft }));
+  if (hot && hot.ready) hot.ready(start); else start(hot && hot.data ? hot.data : {});
+})();
+
+</script>
+
+</body>
+</html>

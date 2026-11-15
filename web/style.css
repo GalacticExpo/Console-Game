@@ -70,11 +70,11 @@ code { font-family: var(--font-data); font-size: 0.9em; }
   text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
 }
 .date { font: 600 14px var(--font-data); color: var(--lcd-fg); white-space: nowrap; }
-.lcd-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.lcd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .stat { display: flex; flex-direction: column; min-width: 0; }
 .stat b { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat small { font-size: 10px; color: var(--lcd-dim); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat.neg b { color: #ff7a6e; }
+.btn.quiet { background: none; border: 0; color: var(--muted); font-weight: 500; text-decoration: underline; }
 
 /* ---------- screens */
 .screen {
