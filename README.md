@@ -8,7 +8,7 @@ Open `index.html` in a browser. On a phone, host it somewhere (for example GitHu
 
 ## How it plays
 
-- **Design a console** from six parts. CPU, GPU and memory add *power*; storage, controller and case add *appeal*. Storage also sets the biggest game that fits (cartridges hold Small games, disc drives hold bigger ones). Better parts cost more to develop and to build.
+- **Design a console** from six parts. For now every slot is locked to its earliest part. CPU, GPU and memory add *power*; storage, controller and case add *appeal*. Storage also sets the biggest game that fits (cartridges hold Small games, disc drives hold bigger ones). Better parts cost more to develop and to build.
 - **Set a price.** Buyers compare it with a fair price based on the console's power and appeal. You keep 75% of the price, minus the cost of building each unit.
 - **Make games** for your consoles. Pick a size, genre and topic, then split 10 points between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. Four critics review each game and tell you what to change. Powerful consoles make graphics look better.
 - **Sales:** good games sell more consoles, and more console owners buy more games. Console sales fade over time, so design new ones to keep growing.

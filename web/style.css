@@ -209,6 +209,7 @@ textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
 .opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .opt.on b { color: var(--accent); }
 .opt:disabled { opacity: 0.5; cursor: default; }
+.opt.locked .num { color: var(--muted); font-weight: 400; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px;

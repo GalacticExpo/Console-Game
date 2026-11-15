@@ -223,6 +223,7 @@ textarea { font: 12px/1.4 var(--font-data); resize: vertical; }
 .opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .opt.on b { color: var(--accent); }
 .opt:disabled { opacity: 0.5; cursor: default; }
+.opt.locked .num { color: var(--muted); font-weight: 400; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px;
@@ -423,11 +424,13 @@ details.game summary::-webkit-details-marker { display: none; }
       units_sold: 0, revenue: 0, last_sales: 0 }, f);
   }
 
-  const FIELDS = ["version", "company", "seed", "money", "month", "consoles", "games", "news"];
+  const FIELDS = ["version", "company", "seed", "money", "month", "unlocked", "consoles", "games", "news"];
 
   class State {
     constructor(f) {
       Object.assign(this, { version: 2, company: "", seed: 1, money: D.STARTING_MONEY, month: 0,
+        // Best tier unlocked in each part slot. Everything starts at the earliest type.
+        unlocked: Object.fromEntries(SLOTS.map((s) => [s, 0])),
         consoles: [], games: [], news: [] }, f || {});
       this.consoles = this.consoles.map(newConsole);
       this.games = this.games.map(newGame);
@@ -461,6 +464,7 @@ details.game summary::-webkit-details-marker { display: none; }
       if (this.nameTaken(name)) throw new GameError(`The name "${name}" is already in use.`);
       for (const s of SLOTS) {
         if (!(parts[s] >= 0 && parts[s] < D.COMPONENTS[s].length)) throw new GameError(`Pick a ${s}.`);
+        if (parts[s] > this.unlocked[s]) throw new GameError(`The ${D.COMPONENTS[s][parts[s]].name} is locked.`);
       }
       if (!(price > 0)) throw new GameError("Price must be more than $0.");
       if (this.consoleInDev()) throw new GameError("Your hardware team is already building a console.");
@@ -870,15 +874,18 @@ details.game summary::-webkit-details-marker { display: none; }
     const price = draft.priceTouched ? draft.price : fair;
     const slots = SLOTS.map((slot) => {
       const kind = D.POWER_SLOTS.includes(slot) ? "power" : "appeal";
-      const opts = D.COMPONENTS[slot].map((t, i) => `
-        <button class="opt ${draft.parts[slot] === i ? "on" : ""}" data-act="part" data-arg="${slot}:${i}" aria-pressed="${draft.parts[slot] === i}">
+      const opts = D.COMPONENTS[slot].map((t, i) => {
+        const locked = i > s.unlocked[slot];
+        return `
+        <button class="opt ${draft.parts[slot] === i ? "on" : ""} ${locked ? "locked" : ""}" data-act="part" data-arg="${slot}:${i}" aria-pressed="${draft.parts[slot] === i}" ${locked ? "disabled" : ""}>
           <b>${t.name}</b><small>+${t.rating} ${kind}${t.capacity ? ` · fits ${biggestSize(t.capacity)} games` : ""}</small>
-          <span class="num">$${t.unit_cost}</span></button>`).join("");
+          <span class="num">${locked ? "Locked" : `$${t.unit_cost}`}</span></button>`;
+      }).join("");
       return `<fieldset><legend>${slot}</legend>${opts}</fieldset>`;
     }).join("");
     const afford = cost <= s.money;
     return screen("Design a console", `
-      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. Better parts cost more per console.</p>
+      <p class="hint">Pick a part for each slot. CPU, GPU and memory add power, which makes games look better. Storage, controller and case add appeal. For now only the earliest parts are available.</p>
       ${slots}
       <section class="card spec">
         <h2>Spec sheet</h2>
@@ -1022,7 +1029,7 @@ details.game summary::-webkit-details-marker { display: none; }
   // ---------- saves & help
   const HELP = `
     <ul class="rules">
-      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits.</li>
+      <li><b>Design a console</b> from six parts. CPU, GPU and memory add power; storage, controller and case add appeal. Storage also limits how big a game fits. Only the earliest parts are unlocked for now.</li>
       <li><b>Price it</b> near what buyers think is fair. Cheaper sells more units, but you make less on each one.</li>
       <li><b>Make games</b> for your consoles. You can start one while the console is being built; it ships at launch.</li>
       <li><b>Split 10 focus points</b> between Gameplay, Graphics, Story and Audio. Each genre has a hidden ideal split, and some topics suit some genres. The critics' notes tell you what to change.</li>
